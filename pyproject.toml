@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "unified-momentum-model"
+version = "0.1.0"
+description = ""
+authors = ["Jaime Liew <jaimeliew1@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "UnifiedMomentumModel"}]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+numpy = ">=1.16"
+scipy = ">=1.6"
+matplotlib = ">=3.6"
+tqdm = "^4.66.1"
+polars = "^0.19.13"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
