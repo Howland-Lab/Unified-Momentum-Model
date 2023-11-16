@@ -7,25 +7,30 @@ It builds on the existing actuator disk model described in [Heck, K. S., Johlas,
 
 
 
-# Usage
-
-
-## Python
-```python
-...
-```
-
 
 # Installation
-
-## Python
-
-Clone this repository and pip install:
+To install this Python package, clone this repository and pip install:
 ```bash
-git clone git@github.com:...
-cd ...
+git clone git@github.com:Howland-Lab/Unified-Momentum-Model.git
+cd Unified-Momentum-Model
 pip install .
 ```
+# Usage
+A `UnifiedMomentum` model object can be instantiated and can be called to solve the model for a given thrust coefficient and rotor yaw angle. Here is a short python script which demonstrates this:
+
+```python
+from UnifiedMomentumModel.Momentum import UnifiedMomentum
+
+model = UnifiedMomentum()
+solution = model.solve(Ctprime=2.0, yaw=0.0)
+
+print(f"induction: {solution.an}")
+print(f"streamwise outlet velocity: {solution.u4}")
+print(f"lateral outlet velocity: {solution.v4}")
+print(f"near-wake length: {solution.x0}")
+print(f"outlet pressure: {solution.dp}")
+```
+
 
 
 # Contributions
