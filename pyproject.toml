@@ -22,6 +22,7 @@ ipykernel = "^6.26.0"
 isort = "^5.12.0"
 ipython = ">=7"
 black = {extras = ["jupyter"], version = "^23.9.1"}
+pytest = "^7.4.3"
 
 [build-system]
 requires = ["poetry-core"]
