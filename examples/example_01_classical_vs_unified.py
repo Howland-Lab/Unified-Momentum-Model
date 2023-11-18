@@ -12,9 +12,7 @@ momentum_theories = {
     "Limited Heck": Momentum.LimitedHeck(),
     "Heck": Momentum.Heck(),
     "Unified Momentum": Momentum.UnifiedMomentum(),
-    "Unified Momentum (linear)": Momentum.UnifiedMomentum(
-        nonlinear_pressure_kwargs=dict(iterations=0)
-    ),
+    "Unified Momentum (linear)": Momentum.UnifiedMomentum(cached=False, iterations=0),
 }
 
 
@@ -23,6 +21,7 @@ def main():
     Ctprime = np.linspace(-1, 100, 500)
     out = {}
     for key, model in momentum_theories.items():
+        print(key)
         sol = model.solve(Ctprime, yaw)
         out[key] = sol
 

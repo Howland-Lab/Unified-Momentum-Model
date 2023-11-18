@@ -9,28 +9,6 @@ from numpy.typing import ArrayLike
 from ..Utilities.Geometry import EquidistantRectGridEven
 from .poisson_pressure_nonlinear import NonLinearPoisson
 
-CACHE_FN = Path(__file__).parent.parent.parent / "p_NL.csv"
-
-
-def load_cache(cache_fn: Path = CACHE_FN) -> Tuple[ArrayLike, ...]:
-    df = pl.read_csv(cache_fn)
-
-    dps = df.to_numpy()[:, 0]
-    xs = np.array(df.columns[1:], dtype=float)
-    ps = df.to_numpy()[:, 1:]
-
-    return dps, xs, ps
-
-
-def save_cache(
-    dps: ArrayLike, xs: ArrayLike, ps: ArrayLike, cache_fn: Path = CACHE_FN
-) -> None:
-    schema = ["dp"] + [f"{x:.2f}" for x in xs]
-    data = np.hstack((np.round(dps[:, np.newaxis], 2), ps))
-    df = pl.DataFrame(data, schema=schema)
-
-    df.write_csv(cache_fn)
-
 
 class NonlinearADPressureField:
     """
@@ -61,12 +39,12 @@ class NonlinearADPressureField:
         self.max_iter = iterations + 1
         self.relax = relax
 
-        dps, xs, ps = self._generate_pressure_table(
+        self.dps, self.xs, self.ps = self._generate_pressure_table(
             ddp, dx, xmax=Lx / 4, accumulate=accumulate, relax=relax
         )
 
         self.interpolator = RegularGridInterpolator(
-            [dps, xs], ps, bounds_error=False, fill_value=0
+            [self.dps, self.xs], self.ps, bounds_error=False, fill_value=0
         )
 
     def _generate_pressure_table(
@@ -168,7 +146,6 @@ class AccumulatedNonlinearADPressureField(NonlinearADPressureField):
         ddp=0.1,
         iterations=3,
         relaxations=[0.0, 0.1, 0.2],
-        cache_fn: Path = CACHE_FN,
     ):
         """
         Lx (float) : x-dimension of the rectangular grid
@@ -182,22 +159,17 @@ class AccumulatedNonlinearADPressureField(NonlinearADPressureField):
         self.max_iter = iterations + 1
         self.relaxations = relaxations
 
-        # TODO: move file caching logic to UnifiedMomentum object
-        if cache_fn.exists():
-            dps, xs, ps = load_cache(cache_fn)
-        else:
-            ps = []
-            for relax in relaxations:
-                dps, xs, _ps = self._generate_pressure_table(
-                    ddp, 0.2, xmax=10, accumulate=True, relax=relax
-                )
-                ps.append(_ps)
+        ps = []
+        for relax in relaxations:
+            self.dps, self.xs, _ps = self._generate_pressure_table(
+                ddp, 0.2, xmax=10, accumulate=True, relax=relax
+            )
+            ps.append(_ps)
 
-            ps = np.min(ps, axis=0)
-
-            save_cache(dps, xs, ps, cache_fn=cache_fn)
+        self.ps = np.min(ps, axis=0)
 
         # TODO: use scipy.interpolate.RectBivariateSpline
+        # TODO switch to make_interpolator function
         self.interpolator = RegularGridInterpolator(
-            [dps, xs], ps, bounds_error=False, fill_value=0
+            [self.dps, self.xs], self.ps, bounds_error=False, fill_value=0
         )

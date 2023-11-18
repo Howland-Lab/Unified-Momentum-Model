@@ -1,11 +1,45 @@
+from pathlib import Path
 from dataclasses import dataclass
 from abc import ABCMeta, abstractmethod
 from typing import Union, Tuple, Optional
 
 import numpy as np
 import numpy.typing as npt
+import polars as pl
 from .Utilities.FixedPointIteration import fixedpointiteration
 from .PressureSolver.ADPressureField import AccumulatedNonlinearADPressureField
+from scipy.interpolate import RegularGridInterpolator
+
+CACHE_FN = Path(__file__).parent.parent.parent / "p_NL.csv"
+
+
+def load_cache(cache_fn: Path = CACHE_FN):
+    df = pl.read_csv(cache_fn)
+
+    dps = df.to_numpy()[:, 0]
+    xs = np.array(df.columns[1:], dtype=float)
+    ps = df.to_numpy()[:, 1:]
+
+    interpolator = make_interpolator(dps, xs, ps)
+    return interpolator
+
+
+def save_cache(
+    dps: npt.ArrayLike, xs: npt.ArrayLike, ps: npt.ArrayLike, cache_fn: Path = CACHE_FN
+) -> None:
+    schema = ["dp"] + [f"{x:.2f}" for x in xs]
+    data = np.hstack((np.round(dps[:, np.newaxis], 2), ps))
+    df = pl.DataFrame(data, schema=schema)
+
+    df.write_csv(cache_fn)
+
+
+def make_interpolator(dps, xs, ps) -> RegularGridInterpolator:
+    # TODO: move this to the pressure classes
+    interpolator = RegularGridInterpolator(
+        [dps, xs], ps, bounds_error=False, fill_value=0
+    )
+    return interpolator
 
 
 @dataclass
@@ -143,13 +177,27 @@ class UnifiedMomentum(MomentumBase):
     def __init__(
         self,
         beta=0.1403,
-        generate_nonlinear_pressure=False,
-        nonlinear_pressure_kwargs={},
+        cached=True,
+        **kwargs,
     ):
         self.beta = beta
-        self.nonlinear_pressure = AccumulatedNonlinearADPressureField(
-            **nonlinear_pressure_kwargs
-        )
+
+        if cached and CACHE_FN.exists():
+            # load cache
+            print("cache loaded")
+            self.nonlinear_interpolator = load_cache(CACHE_FN)
+        else:
+            print("cache generated!!!!")
+            # otherwise, generate and save
+            nonlinear_pressure = AccumulatedNonlinearADPressureField(**kwargs)
+            dps, xs, ps = (
+                nonlinear_pressure.dps,
+                nonlinear_pressure.xs,
+                nonlinear_pressure.ps,
+            )
+            if cached:
+                save_cache(dps, xs, ps)
+            self.nonlinear_interpolator = make_interpolator(dps, xs, ps)
 
     def initial_condition(self, Ctprime, yaw):
         """Returns the initial guess for the solution variables."""
@@ -212,11 +260,26 @@ class UnifiedMomentum(MomentumBase):
     def _nonlinear_pressure(self, Ctprime, yaw, an, x0):
         CT = Ctprime * (1 - an) ** 2 * np.cos(yaw) ** 2
 
-        p_g = self.nonlinear_pressure.get_pressure(CT / 2, x0)
+        # p_g = self.nonlinear_pressure.get_pressure(CT / 2, x0)
+        p_g = self.nonlinear_interpolator((CT / 2, x0))
         return p_g
 
-    def solve(self, Ctprime, yaw, maxiter=400, relax=0.25):
+    def solve(self, Ctprime, yaw, maxiter=500, relax=0.25):
         """Solves the unified momentum model for the given thrust and yaw inputs."""
+        # if Ctprime == 0.0:
+        #     return MomentumSolution(
+        #         Ctprime,
+        #         yaw,
+        #         0.0,
+        #         0.0,
+        #         0.0,
+        #         np.inf,
+        #         0.0,
+        #         dp_NL=0.0,
+        #         niter=0,
+        #         converged=True,
+        #         beta=self.beta,
+        #     )
 
         x0 = self.initial_condition(Ctprime, yaw)
 
@@ -231,7 +294,8 @@ class UnifiedMomentum(MomentumBase):
         if sol.converged:
             a, u4, v4, x0, dp = sol.x
         else:
-            a, u4, v4, x0, dp = np.nan * np.zeros_like(x0)
+            a, u4, v4, x0, dp = sol.x
+            # a, u4, v4, x0, dp = np.nan * np.zeros_like(x0)
 
         p_g = self._nonlinear_pressure(Ctprime, yaw, a, x0)
         return MomentumSolution(
