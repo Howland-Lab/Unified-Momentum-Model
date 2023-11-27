@@ -17,12 +17,12 @@ momentum_theories = {
 
 
 def main():
-    yaw = np.deg2rad(0.0)
+    yaw = np.deg2rad(-0)
     Ctprime = np.linspace(-1, 100, 500)
     out = {}
     for key, model in momentum_theories.items():
-        print(key)
-        sol = model.solve(Ctprime, yaw)
+        sol = model(Ctprime, yaw)
+        print(key, sol.niter)
         out[key] = sol
 
     fig, axes = plt.subplots(4, 1, sharex=True)

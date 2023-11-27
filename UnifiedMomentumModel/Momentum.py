@@ -75,9 +75,7 @@ class MomentumSolution:
 
 
 class MomentumBase(metaclass=ABCMeta):
-    @abstractmethod
-    def solve(self, Ctprime: float, yaw: float, **kwargs) -> MomentumSolution:
-        ...
+    pass
 
 
 class LimitedHeck(MomentumBase):
@@ -86,7 +84,7 @@ class LimitedHeck(MomentumBase):
     array arguments.
     """
 
-    def solve(self, Ctprime: float, yaw: float, **kwargs) -> MomentumSolution:
+    def __call__(self, Ctprime: float, yaw: float, **kwargs) -> MomentumSolution:
         """
         Args:
             Ctprime (float): Rotor thrust coefficient.
@@ -107,48 +105,15 @@ class LimitedHeck(MomentumBase):
         return MomentumSolution(Ctprime, yaw, a, u4, v4, x0, dp)
 
 
+@fixedpointiteration(max_iter=500, tolerance=0.00001, relaxation=0.1)
 class Heck(MomentumBase):
     """
     Solves the iterative momentum equation for an actuator disk model.
     """
 
-    def initial_condition(self, Ctprime, yaw):
-        sol = LimitedHeck().solve(Ctprime, yaw)
+    def initial_guess(self, Ctprime, yaw):
+        sol = LimitedHeck()(Ctprime, yaw)
         return sol.an, sol.u4, sol.v4
-
-    def solve(
-        self, Ctprime: float, yaw: float, x0=None, eps=0.00001, **kwargs
-    ) -> MomentumSolution:
-        """
-        Args:
-            Ctprime (float): Rotor thrust coefficient.
-            yaw (float): Rotor yaw angle (radians).
-
-        Returns:
-            Tuple[float, float, float]: induction and outlet velocities.
-        """
-        if x0 is None:
-            x0 = self.initial_condition(Ctprime, yaw)
-
-        relax = 0.9 if np.max(Ctprime) > 15 else 0.1
-
-        sol = fixedpointiteration(
-            self.residual,
-            x0,
-            args=(Ctprime, yaw),
-            eps=eps,
-            relax=relax,
-        )
-
-        if sol.converged:
-            a, u4, v4 = sol.x
-        else:
-            a, u4, v4 = np.nan * np.zeros_like(x0)
-        dp = np.zeros_like(a)
-        x0 = np.inf * np.ones_like(a)
-        return MomentumSolution(
-            Ctprime, yaw, a, u4, v4, x0, dp, niter=sol.niter, converged=sol.converged
-        )
 
     def residual(self, x: np.ndarray, Ctprime: float, yaw: float) -> np.ndarray:
         """
@@ -158,7 +123,6 @@ class Heck(MomentumBase):
             x (np.ndarray): (a, u4, v4)
             Ctprime (float): Rotor thrust coefficient.
             yaw (float): Rotor yaw angle (radians).
-            Uamb (float): Ambient wind velocity. Defaults to 1.0.
 
         Returns:
             np.ndarray: residuals of induction and outlet velocities.
@@ -172,7 +136,27 @@ class Heck(MomentumBase):
         e_v4 = -0.25 * Ctprime * (1 - a) ** 2 * np.sin(yaw) * np.cos(yaw) ** 2 - v4
         return np.array([e_a, e_u4, e_v4])
 
+    def post_process(self, result, Ctprime: float, yaw: float):
+        if result.converged:
+            a, u4, v4 = result.x
+        else:
+            a, u4, v4 = np.nan * np.zeros_like([Ctprime, Ctprime, Ctprime])
+        dp = np.zeros_like(a)
+        x0 = np.inf * np.ones_like(a)
+        return MomentumSolution(
+            Ctprime,
+            yaw,
+            a,
+            u4,
+            v4,
+            x0,
+            dp,
+            niter=result.niter,
+            converged=result.converged,
+        )
 
+
+@fixedpointiteration(max_iter=500, relaxation=0.25, tolerance=0.00001)
 class UnifiedMomentum(MomentumBase):
     def __init__(
         self,
@@ -184,10 +168,8 @@ class UnifiedMomentum(MomentumBase):
 
         if cached and CACHE_FN.exists():
             # load cache
-            print("cache loaded")
             self.nonlinear_interpolator = load_cache(CACHE_FN)
         else:
-            print("cache generated!!!!")
             # otherwise, generate and save
             nonlinear_pressure = AccumulatedNonlinearADPressureField(**kwargs)
             dps, xs, ps = (
@@ -199,21 +181,20 @@ class UnifiedMomentum(MomentumBase):
                 save_cache(dps, xs, ps)
             self.nonlinear_interpolator = make_interpolator(dps, xs, ps)
 
-    def initial_condition(self, Ctprime, yaw):
+    def initial_guess(self, Ctprime, yaw):
         """Returns the initial guess for the solution variables."""
-        an = (Ctprime * np.cos(yaw) ** 2) / (4 + Ctprime * np.cos(yaw) ** 2)
-        u4 = (4 - Ctprime * np.cos(yaw) ** 2) / (4 + Ctprime * np.cos(yaw) ** 2)
-        v4 = (4 * Ctprime * np.sin(yaw) * np.cos(yaw) ** 2) / (
-            (4 + Ctprime * np.cos(yaw) ** 2) ** 2
-        )
+        sol = LimitedHeck()(Ctprime, yaw)
+
         x0 = 1000 * np.ones_like(Ctprime)
         dp = np.zeros_like(Ctprime)
 
-        return np.vstack([an, u4, v4, x0, dp])
+        return np.vstack([sol.an, sol.u4, sol.v4, x0, dp])
 
     def residual(self, x: np.ndarray, Ctprime: float, yaw: float) -> Tuple[float, ...]:
         """Returns the residual equations for the fixed point iteration."""
         an, u4, v4, x0, dp = x
+        if type(Ctprime) is float and Ctprime == 0:
+            return 0 - an, 1 - u4, 0 - v4, 100 - x0, 0 - dp
 
         p_g = self._nonlinear_pressure(Ctprime, yaw, an, x0)
 
@@ -264,38 +245,8 @@ class UnifiedMomentum(MomentumBase):
         p_g = self.nonlinear_interpolator((CT / 2, x0))
         return p_g
 
-    def solve(self, Ctprime, yaw, maxiter=500, relax=0.25):
-        """Solves the unified momentum model for the given thrust and yaw inputs."""
-        # if Ctprime == 0.0:
-        #     return MomentumSolution(
-        #         Ctprime,
-        #         yaw,
-        #         0.0,
-        #         0.0,
-        #         0.0,
-        #         np.inf,
-        #         0.0,
-        #         dp_NL=0.0,
-        #         niter=0,
-        #         converged=True,
-        #         beta=self.beta,
-        #     )
-
-        x0 = self.initial_condition(Ctprime, yaw)
-
-        sol = fixedpointiteration(
-            self.residual,
-            x0,
-            args=(Ctprime, yaw),
-            maxiter=maxiter,
-            relax=relax,
-        )
-
-        if sol.converged:
-            a, u4, v4, x0, dp = sol.x
-        else:
-            a, u4, v4, x0, dp = sol.x
-            # a, u4, v4, x0, dp = np.nan * np.zeros_like(x0)
+    def post_process(self, result, Ctprime, yaw):
+        a, u4, v4, x0, dp = result.x
 
         p_g = self._nonlinear_pressure(Ctprime, yaw, a, x0)
         return MomentumSolution(
@@ -307,22 +258,23 @@ class UnifiedMomentum(MomentumBase):
             x0,
             dp,
             dp_NL=p_g,
-            niter=sol.niter,
-            converged=sol.converged,
+            niter=result.niter,
+            converged=result.converged,
             beta=self.beta,
         )
 
 
+@fixedpointiteration(max_iter=5000, relaxation=0.2, tolerance=0.00001)
 class ThrustBasedUnified(UnifiedMomentum):
-    def __init__(self, beta=0.1403, nonlinear_pressure_kwargs={}):
-        super().__init__(beta=beta, nonlinear_pressure_kwargs=nonlinear_pressure_kwargs)
+    def __init__(self, beta=0.1403, cached=True):
+        super().__init__(beta=beta, cached=cached)
 
-    def initial_condition(self, Ct, yaw):
+    def initial_guess(self, Ct, yaw):
         an = 0.5 * Ct
         u4 = 1 - Ct
         v4 = np.zeros_like(Ct)
         dp = np.zeros_like(Ct)
-        x0 = 1000 * np.ones_like(Ct)
+        x0 = 100 * np.ones_like(Ct)
         Ctprime = np.sign(Ct)
 
         return np.vstack([an, u4, v4, x0, dp, Ctprime])
@@ -337,20 +289,9 @@ class ThrustBasedUnified(UnifiedMomentum):
         e_Ctprime = Ct / ((1 - an) ** 2 * np.cos(yaw) ** 2) - Ctprime
         return np.array([e_an, e_u4, e_v4, e_x0, e_dp, e_Ctprime])
 
-    def solve(self, Ct, yaw, x0=None, relax=0.25, maxiter=5000, **kwargs):
-        x0 = self.initial_condition(Ct, yaw)
-
-        sol = fixedpointiteration(
-            self.residual,
-            x0,
-            args=(Ct, yaw),
-            kwargs=kwargs,
-            maxiter=maxiter,
-            relax=relax,
-        )
-
-        a, u4, v4, x0, dp, Ctprime = sol.x
-
+    def post_process(self, result, Ct, yaw):
+        a, u4, v4, x0, dp, Ctprime = result.x
+        p_g = self._nonlinear_pressure(Ctprime, yaw, a, x0)
         return MomentumSolution(
             Ctprime,
             yaw,
@@ -359,8 +300,8 @@ class ThrustBasedUnified(UnifiedMomentum):
             v4,
             x0,
             dp,
-            # dp_NL=p_g,
-            niter=sol.niter,
-            converged=sol.converged,
+            dp_NL=p_g,
+            niter=result.niter,
+            converged=result.converged,
             beta=self.beta,
         )

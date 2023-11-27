@@ -1,5 +1,6 @@
 from UnifiedMomentumModel.Momentum import MomentumSolution, LimitedHeck
 import numpy as np
+from pytest import approx
 
 
 def test_MomentumSolution():
@@ -14,8 +15,8 @@ def test_MomentumSolution():
     assert u4 == sol.u4
     assert v4 == sol.v4
     assert dp == sol.dp
-    assert np.allclose(sol.Ct, 0.0729816)
-    assert np.allclose(sol.Cp, 0.0197160756563)
+    assert sol.Ct == approx(0.0729816)
+    assert sol.Cp == approx(0.0197160756563)
 
 
 def test_MomentumSolution_comparison():
@@ -29,32 +30,32 @@ def test_MomentumSolution_comparison():
 
 def test_LimitedHeck_aligned():
     model = LimitedHeck()
-    sol = model.solve(2, 0)
+    sol = model(2, 0)
 
     expected = MomentumSolution(2, 0, 1 / 3, 1 / 3, 0, np.inf, 0)
     assert sol == expected
-    assert np.allclose(sol.Ctprime, 2)
-    assert np.allclose(sol.yaw, 0)
-    assert np.allclose(sol.an, 1 / 3)
-    assert np.allclose(sol.u4, 1 / 3)
-    assert np.allclose(sol.v4, 0.0)
-    assert np.allclose(sol.x0, np.inf)
+    assert sol.Ctprime == approx(2)
+    assert sol.yaw == approx(0)
+    assert sol.an == approx(1 / 3)
+    assert sol.u4 == approx(1 / 3)
+    assert sol.v4 == approx(0.0)
+    assert sol.x0 == approx(np.inf)
 
 
 def test_LimitedHeck_misaligned():
     model = LimitedHeck()
-    sol = model.solve(2, np.deg2rad(10))
-    assert np.allclose(sol.Ctprime, 2)
-    assert np.allclose(sol.yaw, np.deg2rad(10))
-    assert np.allclose(sol.an, 0.32656447810076383)
-    assert np.allclose(sol.u4, 0.3468710437984724)
-    assert np.allclose(sol.v4, -0.038188728025758754)
-    assert np.allclose(sol.x0, np.inf)
+    sol = model(2, np.deg2rad(10))
+    assert sol.Ctprime == approx(2)
+    assert sol.yaw == approx(np.deg2rad(10))
+    assert sol.an == approx(0.32656447810076383)
+    assert sol.u4 == approx(0.3468710437984724)
+    assert sol.v4 == approx(-0.038188728025758754)
+    assert sol.x0 == approx(np.inf)
 
 
 def test_LimitedHeck_zero():
     model = LimitedHeck()
-    sol = model.solve(0, 0)
+    sol = model(0, 0)
     expected = MomentumSolution(0, 0, 0, 1, 0, np.inf, 0)
     assert sol == expected
 
