@@ -1,8 +1,9 @@
+from abc import ABC
+
 import numpy as np
 from numpy.typing import ArrayLike
-from scipy import signal, sparse, interpolate
+from scipy import interpolate, signal, sparse
 from tqdm import trange
-from abc import ABC
 
 from ..Utilities import Calculus, Geometry
 

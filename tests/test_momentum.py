@@ -1,6 +1,7 @@
-from UnifiedMomentumModel.Momentum import MomentumSolution, LimitedHeck
 import numpy as np
 from pytest import approx
+
+from UnifiedMomentumModel.Momentum import LimitedHeck, MomentumSolution
 
 
 def test_MomentumSolution():

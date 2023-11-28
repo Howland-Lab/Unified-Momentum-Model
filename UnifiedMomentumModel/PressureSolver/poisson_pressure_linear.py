@@ -7,8 +7,8 @@ import numpy as np
 from numpy.typing import ArrayLike
 from scipy import interpolate
 
-from ..Utilities.Geometry import Geometry, EquidistantRectGridOdd
 from ..Utilities import Calculus
+from ..Utilities.Geometry import EquidistantRectGridOdd, Geometry
 
 
 class AnalyticalLinearSolution:
@@ -94,7 +94,7 @@ class AnalyticalLinearSolution:
         return out
 
 
-def construct_f(dP: float, geom: EquidistantRectGridOdd):
+def construct_f(dP: float, geom: Geometry):
     fx = np.zeros(geom.shape)
     mask = np.abs(geom.y) <= 1.0
     N = mask.sum()

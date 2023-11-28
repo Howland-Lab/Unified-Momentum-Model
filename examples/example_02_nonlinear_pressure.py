@@ -1,14 +1,9 @@
 from pathlib import Path
 
-import numpy as np
-from scipy.interpolate import RegularGridInterpolator
-import polars as pl
 import matplotlib.pyplot as plt
-from tqdm import tqdm
-from UnifiedMomentumModel.PressureSolver.ADPressureField import (
-    AccumulatedNonlinearADPressureField,
-)
+import numpy as np
 
+from UnifiedMomentumModel.PressureSolver.ADPressureField import generate_pressure_table
 
 # Use Latex Fonts
 plt.rcParams.update({"text.usetex": True, "font.family": "serif"})
@@ -21,17 +16,13 @@ fig_fn = FIGDIR / "example_02_combined_pressure.png"
 
 
 def main():
-    # dp_mesh, x_mesh = np.meshgrid(dps, xs, indexing="ij")
-
-    centerline_pressure = AccumulatedNonlinearADPressureField()
-    dps, xs = centerline_pressure.interpolator.grid
-    combined_field = centerline_pressure.interpolator.values
+    dps, xs, ps = generate_pressure_table()
 
     levels = np.arange(-0.3, 0.001, 0.025)
 
     plt.figure(figsize=(6, 3))
-    CF = plt.contourf(xs, dps, combined_field, levels=levels, cmap="viridis_r")
-    CS = plt.contour(xs, dps, combined_field, levels=levels, colors="k")
+    CF = plt.contourf(xs, dps, ps, levels=levels, cmap="viridis_r")
+    CS = plt.contour(xs, dps, ps, levels=levels, colors="k")
     plt.clabel(CS, inline=True, fontsize=10, fmt="%1.3f")
 
     cbar = plt.colorbar(CF)

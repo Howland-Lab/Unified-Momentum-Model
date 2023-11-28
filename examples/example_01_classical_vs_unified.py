@@ -1,7 +1,8 @@
 from pathlib import Path
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+
 from UnifiedMomentumModel import Momentum
 
 FIGDIR = Path("fig")
@@ -12,7 +13,7 @@ momentum_theories = {
     "Limited Heck": Momentum.LimitedHeck(),
     "Heck": Momentum.Heck(),
     "Unified Momentum": Momentum.UnifiedMomentum(),
-    "Unified Momentum (linear)": Momentum.UnifiedMomentum(cached=False, iterations=0),
+    "Unified Momentum (linear)": Momentum.UnifiedMomentum(cached=False, max_iter=0),
 }
 
 

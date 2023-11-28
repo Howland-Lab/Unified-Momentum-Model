@@ -1,45 +1,12 @@
-from pathlib import Path
+from abc import ABCMeta
 from dataclasses import dataclass
-from abc import ABCMeta, abstractmethod
-from typing import Union, Tuple, Optional
+from typing import Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
-import polars as pl
+
+from .PressureSolver import ADPressureField
 from .Utilities.FixedPointIteration import fixedpointiteration
-from .PressureSolver.ADPressureField import AccumulatedNonlinearADPressureField
-from scipy.interpolate import RegularGridInterpolator
-
-CACHE_FN = Path(__file__).parent.parent.parent / "p_NL.csv"
-
-
-def load_cache(cache_fn: Path = CACHE_FN):
-    df = pl.read_csv(cache_fn)
-
-    dps = df.to_numpy()[:, 0]
-    xs = np.array(df.columns[1:], dtype=float)
-    ps = df.to_numpy()[:, 1:]
-
-    interpolator = make_interpolator(dps, xs, ps)
-    return interpolator
-
-
-def save_cache(
-    dps: npt.ArrayLike, xs: npt.ArrayLike, ps: npt.ArrayLike, cache_fn: Path = CACHE_FN
-) -> None:
-    schema = ["dp"] + [f"{x:.2f}" for x in xs]
-    data = np.hstack((np.round(dps[:, np.newaxis], 2), ps))
-    df = pl.DataFrame(data, schema=schema)
-
-    df.write_csv(cache_fn)
-
-
-def make_interpolator(dps, xs, ps) -> RegularGridInterpolator:
-    # TODO: move this to the pressure classes
-    interpolator = RegularGridInterpolator(
-        [dps, xs], ps, bounds_error=False, fill_value=0
-    )
-    return interpolator
 
 
 @dataclass
@@ -158,28 +125,18 @@ class Heck(MomentumBase):
 
 @fixedpointiteration(max_iter=500, relaxation=0.25, tolerance=0.00001)
 class UnifiedMomentum(MomentumBase):
-    def __init__(
-        self,
-        beta=0.1403,
-        cached=True,
-        **kwargs,
-    ):
+    def __init__(self, beta=0.1403, cached=True, **kwargs):
         self.beta = beta
 
-        if cached and CACHE_FN.exists():
+        if cached and ADPressureField.CACHE_FN.exists():
             # load cache
-            self.nonlinear_interpolator = load_cache(CACHE_FN)
+            self.nonlinear_interpolator = ADPressureField.load_cache()
         else:
             # otherwise, generate and save
-            nonlinear_pressure = AccumulatedNonlinearADPressureField(**kwargs)
-            dps, xs, ps = (
-                nonlinear_pressure.dps,
-                nonlinear_pressure.xs,
-                nonlinear_pressure.ps,
-            )
+            dps, xs, ps = ADPressureField.generate_pressure_table(**kwargs)
             if cached:
-                save_cache(dps, xs, ps)
-            self.nonlinear_interpolator = make_interpolator(dps, xs, ps)
+                ADPressureField.save_cache(dps, xs, ps)
+            self.nonlinear_interpolator = ADPressureField.make_interpolator(dps, xs, ps)
 
     def initial_guess(self, Ctprime, yaw):
         """Returns the initial guess for the solution variables."""

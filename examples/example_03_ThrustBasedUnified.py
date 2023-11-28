@@ -1,7 +1,8 @@
 from pathlib import Path
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+
 from UnifiedMomentumModel import Momentum
 
 FIGDIR = Path("fig")
