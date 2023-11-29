@@ -5,9 +5,10 @@ import numpy as np
 import polars as pl
 from numpy.typing import ArrayLike
 from scipy.interpolate import RegularGridInterpolator
+from tqdm import tqdm
 
 from ..Utilities.FixedPointIteration import adaptivefixedpointiteration
-from .poisson_pressure_nonlinear import NonLinearPoissonCenterline
+from .ADPressure import NonLinearPoissonCenterline
 
 CACHE_FN = Path(__file__).parent.parent.parent / "p_NL.csv"
 
@@ -18,6 +19,7 @@ def generate_pressure_table(
     max_iter=3,
     tolerance=0.00001,
     relaxations=[0, 0.1, 0.2],
+    progress=False,
 ) -> Tuple[ArrayLike, ...]:
     """
     Generate interpolation table by solving nonlinear PDE
@@ -38,7 +40,7 @@ def generate_pressure_table(
 
     # Generate nonlinear pressure table
     ps = []
-    for dp in dps:
+    for dp in tqdm(dps, disable=not progress):
         xs, p = model(dp)
         ps.append(p[(xs < xmax) & (xs > 0)])
 

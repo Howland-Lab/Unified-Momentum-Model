@@ -1,15 +1,15 @@
 from dataclasses import dataclass
-from typing import Any, Callable, List, Protocol
+from typing import Any, Callable, List, Protocol, Tuple
 
 import numpy as np
 from numpy.typing import ArrayLike
 
 
 class FixedPointIterationCompatible(Protocol):
-    def residual(self, *args, **kwargs):
+    def residual(self, *args, **kwargs) -> Tuple[ArrayLike]:
         ...
 
-    def initial_guess(self, *args, **kwargs):
+    def initial_guess(self, *args, **kwargs) -> Tuple[ArrayLike]:
         ...
 
 
@@ -37,17 +37,16 @@ def _fixedpointiteration(
     iterations is reached.
 
     Args:
-        f (Callable): residual function of form f(x, *args) -> np.ndarray
+        f (Callable): residual function of form f(x, *args, **kwargs) -> np.ndarray
         x0 (np.ndarray): Initial guess
         args (tuple): arguments to pass to residual function. Defaults to ().
+        kwargs (dict): keyword arguments to pass to residual function. Defaults to {}.
         eps (float): Convergence tolerance. Defaults to 0.000001.
         maxiter (int): Maximum number of iterations. Defaults to 100.
-
-    Raises:
-        ValueError: Max iterations reached.
+        callback (Callable): optional callback function at each iteration of the form f(x0) -> None
 
     Returns:
-        np.ndarray: Solution to residual function.
+        FixedPointIterationResult: Solution to residual function.
     """
 
     for c in range(maxiter):
@@ -72,15 +71,27 @@ def _fixedpointiteration(
 
 def fixedpointiteration(
     max_iter: int = 100, tolerance: float = 1e-6, relaxation: float = 0.0
-) -> Callable:
+) -> FixedPointIterationCompatible:
     """
     Class decorator which adds a __call__ method to the class which performs
-    fixed-point iteration. The class must contain 2 mandatory methods and 1
+    fixed-point iteration.
+
+    Args:
+        max_iter (int): Maximum number of iterations (default: 100)
+        tolerance (float): Convergence criteria (default: 1e-6)
+        relaxation (float): Relaxation factor between 0 and 1 (default: 0.0)
+
+    The class must contain 2 mandatory methods and 3
     optional method:
 
+    mandatory:
     initial_guess(self, *args, **kwargs)
     residual(self, x, *args, **kwargs)
+
+    optional:
+    pre_process(self, *args, **kwargs) # Optional
     post_process(self, result:FixedPointIterationResult) # Optional
+    callback(self, x) # Optional
 
     """
 
@@ -119,13 +130,9 @@ def adaptivefixedpointiteration(
 ) -> Callable:
     """
     Class decorator which adds a __call__ method to the class which performs
-    fixed-point iteration. The class must contain 2 mandatory methods and 1
-    optional method:
-
-    initial_guess(self, *args, **kwargs)
-    residual(self, x, *args, **kwargs)
-    post_process(self, result:FixedPointIterationResult) # Optional
-
+    fixed-point iteration. Same as `fixedpointiteration`, but takes a list of
+    relaxation factors, and iterates over all of them in order until convergence
+    is reached.
     """
 
     def decorator(cls: FixedPointIterationCompatible) -> Callable:

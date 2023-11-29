@@ -10,8 +10,47 @@ from ..Utilities.FixedPointIteration import (
     adaptivefixedpointiteration,
 )
 from ..Utilities.Geometry import EquidistantRectGridEven, Geometry
-from .poisson_pressure_linear import AnalyticalLinearSolution
 from .PressureSolver import Convolution, PressureSolution, PressureSolver
+
+
+class LinearPressureSolution:
+    def __init__(self, geom: Geometry, p: ArrayLike, wx: ArrayLike, wy: ArrayLike):
+        self.geom = geom
+        self.p = p
+        self.wx = wx
+        self.wy = wy
+
+    @property
+    def dpdx(self) -> ArrayLike:
+        return Calculus.derivative_x(self.p, self.geom.dx)
+
+    @property
+    def dpdy(self) -> ArrayLike:
+        return Calculus.derivative_y(self.p, self.geom.dy)
+
+    @property
+    def d2pdx2(self) -> ArrayLike:
+        return Calculus.derivative_x(self.dpdx, self.geom.dx)
+
+    @property
+    def d2pdy2(self) -> ArrayLike:
+        return Calculus.derivative_y(self.dpdy, self.geom.dy)
+
+    @property
+    def dwxdx(self) -> ArrayLike:
+        return Calculus.derivative_x(self.wx, self.geom.dx)
+
+    @property
+    def dwxdy(self) -> ArrayLike:
+        return Calculus.derivative_y(self.wx, self.geom.dy)
+
+    @property
+    def dwydx(self) -> ArrayLike:
+        return Calculus.derivative_x(self.wy, self.geom.dx)
+
+    @property
+    def dwydy(self) -> ArrayLike:
+        return Calculus.derivative_y(self.wy, self.geom.dy)
 
 
 class LinearPoisson:
@@ -30,7 +69,7 @@ class LinearPoisson:
             )
         )
 
-        wx = -np.array(self.p)
+        wx = -np.array(p)
         wx[(self.geom.xmesh > 0) & (np.abs(self.geom.ymesh) <= 1)] -= dP
         wy = (
             dP
@@ -42,10 +81,23 @@ class LinearPoisson:
         )
 
         # Remove nans and infs
-        p[np.isnan(self.p)] = 0
-        wx[np.isnan(self.wx)] = 0
-        wy[self.wy == -np.inf] = np.nanmin(self.wy[np.isfinite(self.wy)])
-        wy[self.wy == np.inf] = np.nanmax(self.wy[np.isfinite(self.wy)])
+        p[np.isnan(p)] = 0
+        wx[np.isnan(wx)] = 0
+        wy[wy == -np.inf] = np.nanmin(wy[np.isfinite(wy)])
+        wy[wy == np.inf] = np.nanmax(wy[np.isfinite(wy)])
+
+        out = LinearPressureSolution(self.geom, p, wx, wy)
+        return out
+
+
+def construct_f(dP: float, geom: Geometry):
+    fx = np.zeros(geom.shape)
+    mask = np.abs(geom.y) <= 1.0
+    N = mask.sum()
+    fx[geom.Nx // 2, mask] = -dP * (geom.dy / geom.dx) / (2 / (N - 1))
+
+    fy = np.zeros(geom.shape)
+    return fx, fy
 
 
 @adaptivefixedpointiteration(max_iter=3, tolerance=0.00001, relaxations=[0, 0.1, 0.2])
@@ -55,15 +107,15 @@ class NonLinearPoisson:
         accumulate=True,
         geometry: Optional[Geometry] = None,
         pressuresolver: Optional[PressureSolver] = None,
-        analyticalsolver: Optional[AnalyticalLinearSolution] = None,
+        analyticalsolver: Optional[LinearPoisson] = None,
     ):
         self.accumulate = accumulate
         self.geom = geometry or EquidistantRectGridEven(60.0, 60.0, 0.1, 1.0)
         self.pressuresolver = pressuresolver or Convolution(self.geom)
-        self.analyticalsolver = analyticalsolver or AnalyticalLinearSolution
+        self.analyticalsolver = analyticalsolver or LinearPoisson(geometry)
 
     def pre_process(self, dP):
-        self.sol_linear = self.analyticalsolver(dP, self.geom)
+        self.sol_linear = self.analyticalsolver(dP)
         self.pressure_fields = []
 
     def initial_guess(self, dP):
@@ -105,12 +157,7 @@ class NonLinearPoisson:
         else:
             combined_field = self.pressure_fields[-1]
         out = PressureSolution(
-            self.geom.Lx,
-            self.geom.Ly,
-            self.geom.dx,
-            self.geom.dy,
-            self.geom.xmesh,
-            self.geom.ymesh,
+            self.geom,
             combined_field,
             gx,
             gy,
@@ -125,8 +172,8 @@ class NonLinearPoissonCenterline(NonLinearPoisson):
     def post_process(self, result: FixedPointIterationResult, dP: float):
         sol = super().post_process(result, dP)
 
-        x_ = sol.xmesh[:, 0]
-        y_ = sol.ymesh[0, :]
+        x_ = sol.geom.xmesh[:, 0]
+        y_ = sol.geom.ymesh[0, :]
         # Create interpolator. Convert radius-based calculations to diameter-based
         interpolator = RegularGridInterpolator(
             [x_ / 2, y_], sol.p, bounds_error=False, fill_value=0

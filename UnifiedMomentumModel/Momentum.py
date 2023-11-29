@@ -5,7 +5,7 @@ from typing import Optional, Tuple, Union
 import numpy as np
 import numpy.typing as npt
 
-from .PressureSolver import ADPressureField
+from .Pressure import PressureTable
 from .Utilities.FixedPointIteration import fixedpointiteration
 
 
@@ -24,11 +24,6 @@ class MomentumSolution:
     niter: Optional[int] = 1
     converged: Optional[bool] = True
     beta: Optional[float] = 0.0
-
-    @property
-    def solution(self):
-        """Returns the solution variables an, u4, v4, dp."""
-        return self.an, self.u4, self.v4, self.dp
 
     @property
     def Ct(self):
@@ -128,15 +123,15 @@ class UnifiedMomentum(MomentumBase):
     def __init__(self, beta=0.1403, cached=True, **kwargs):
         self.beta = beta
 
-        if cached and ADPressureField.CACHE_FN.exists():
+        if cached and PressureTable.CACHE_FN.exists():
             # load cache
-            self.nonlinear_interpolator = ADPressureField.load_cache()
+            self.nonlinear_interpolator = PressureTable.load_cache()
         else:
             # otherwise, generate and save
-            dps, xs, ps = ADPressureField.generate_pressure_table(**kwargs)
+            dps, xs, ps = PressureTable.generate_pressure_table(**kwargs)
             if cached:
-                ADPressureField.save_cache(dps, xs, ps)
-            self.nonlinear_interpolator = ADPressureField.make_interpolator(dps, xs, ps)
+                PressureTable.save_cache(dps, xs, ps)
+            self.nonlinear_interpolator = PressureTable.make_interpolator(dps, xs, ps)
 
     def initial_guess(self, Ctprime, yaw):
         """Returns the initial guess for the solution variables."""
@@ -148,13 +143,18 @@ class UnifiedMomentum(MomentumBase):
         return np.vstack([sol.an, sol.u4, sol.v4, x0, dp])
 
     def residual(self, x: np.ndarray, Ctprime: float, yaw: float) -> Tuple[float, ...]:
-        """Returns the residual equations for the fixed point iteration."""
+        """
+        Returns the residuals of the Unified Momentum Model for the fixed point
+        iteration. The equations referred to in this function are from the
+        associated paper.
+        """
         an, u4, v4, x0, dp = x
         if type(Ctprime) is float and Ctprime == 0:
             return 0 - an, 1 - u4, 0 - v4, 100 - x0, 0 - dp
 
         p_g = self._nonlinear_pressure(Ctprime, yaw, an, x0)
 
+        # Eq. 4 - Near wake length in residual form.
         e_x0 = (
             np.cos(yaw)
             / (2 * self.beta)
@@ -163,6 +163,7 @@ class UnifiedMomentum(MomentumBase):
             * np.sqrt((1 - an) * np.cos(yaw) / (1 + u4))
         ) - x0
 
+        # Eq. 1 - Rotor-normal induction in residual form.
         e_an = (
             1
             - np.sqrt(
@@ -171,6 +172,7 @@ class UnifiedMomentum(MomentumBase):
             )
         ) - an
 
+        # Eq. 2 - Streamwise outlet velocity in residual form.
         e_u4 = (
             -(1 / 4) * Ctprime * (1 - an) * np.cos(yaw) ** 2
             + (1 / 2)
@@ -180,8 +182,10 @@ class UnifiedMomentum(MomentumBase):
             )
         ) - u4
 
+        # Eq. 3 - Lateral outlet velocity in residual form.
         e_v4 = -(1 / 4) * Ctprime * (1 - an) ** 2 * np.sin(yaw) * np.cos(yaw) ** 2 - v4
 
+        # Eq. 5 - Outlet pressure drop in residual form.
         e_dp = (
             (
                 -(1 / (2 * np.pi))
@@ -198,7 +202,6 @@ class UnifiedMomentum(MomentumBase):
     def _nonlinear_pressure(self, Ctprime, yaw, an, x0):
         CT = Ctprime * (1 - an) ** 2 * np.cos(yaw) ** 2
 
-        # p_g = self.nonlinear_pressure.get_pressure(CT / 2, x0)
         p_g = self.nonlinear_interpolator((CT / 2, x0))
         return p_g
 
@@ -243,6 +246,7 @@ class ThrustBasedUnified(UnifiedMomentum):
             [an, u4, v4, x0, dp], Ctprime, yaw
         )
 
+        # Eq. 6 - thrust coefficient equation in residual form.
         e_Ctprime = Ct / ((1 - an) ** 2 * np.cos(yaw) ** 2) - Ctprime
         return np.array([e_an, e_u4, e_v4, e_x0, e_dp, e_Ctprime])
 

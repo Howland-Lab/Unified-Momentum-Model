@@ -10,7 +10,7 @@ def test_MomentumSolution():
     MomentumSolution(1, 1, 0.5, 1, 1, 1, 1, niter=1)
     sol = MomentumSolution(1, 1, 0.5, 1, 1, 1, 1, beta=1)
 
-    an, u4, v4, dp = sol.solution
+    an, u4, v4, dp = sol.an, sol.u4, sol.v4, sol.dp
 
     assert an == sol.an
     assert u4 == sol.u4
