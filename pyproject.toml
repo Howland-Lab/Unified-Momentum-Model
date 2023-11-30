@@ -16,7 +16,11 @@ tqdm = "^4.66.1"
 polars = "^0.19.13"
 jupyter = "^1.0.0"
 ipykernel = "^6.26.0"
+dualitic = {git = "https://github.com/jaimeliew1/Dualitic.git", optional = true}
 
+
+[tool.poetry.extras]
+autodiff = ["dualitic"]
 
 [tool.poetry.group.dev.dependencies]
 isort = "^5.12.0"
