@@ -7,7 +7,7 @@
   "postCreateCommand": "",
   "customizations": {
     "codespaces": {
-      "openFiles": ["figures/figure_04_power_contour.ipynb"]
+      "openFiles": ["README.md"]
     },
     "vscode": {
       "extensions": [
