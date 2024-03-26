@@ -73,6 +73,21 @@ class Heck(MomentumBase):
     Solves the iterative momentum equation for an actuator disk model.
     """
 
+    def __init__(self, v4_correction: float = 1.0):
+        """
+        Initialize the HeckModel instance.
+
+        Args:
+            v4_correction (float, optional): The premultiplier of v4 in the Heck
+            model. A correction factor applied to v4, with a default value of
+            1.0, indicating no correction. Lu (2023) suggests an empirical correction
+            of 1.5.
+
+        Example:
+            >>> model = HeckModel(v4_correction=1.5)
+        """
+        self.v4_correction = v4_correction
+
     def initial_guess(self, Ctprime, yaw):
         sol = LimitedHeck()(Ctprime, yaw)
         return sol.an, sol.u4, sol.v4
@@ -95,7 +110,16 @@ class Heck(MomentumBase):
 
         e_u4 = (1 - 0.5 * Ctprime * (1 - a) * np.cos(yaw) ** 2) - u4
 
-        e_v4 = -0.25 * Ctprime * (1 - a) ** 2 * np.sin(yaw) * np.cos(yaw) ** 2 - v4
+        e_v4 = (
+            -self.v4_correction
+            * 0.25
+            * Ctprime
+            * (1 - a) ** 2
+            * np.sin(yaw)
+            * np.cos(yaw) ** 2
+            - v4
+        )
+
         return np.array([e_a, e_u4, e_v4])
 
     def post_process(self, result, Ctprime: float, yaw: float):
