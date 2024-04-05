@@ -6,7 +6,7 @@ import numpy as np
 import numpy.typing as npt
 
 from .Pressure import PressureTable
-from .Utilities.FixedPointIteration import fixedpointiteration
+from .Utilities.FixedPointIteration import fixedpointiteration, adaptivefixedpointiteration
 
 
 @dataclass
@@ -248,7 +248,7 @@ class UnifiedMomentum(MomentumBase):
         )
 
 
-@fixedpointiteration(max_iter=5000, relaxation=0.2, tolerance=0.00001)
+@adaptivefixedpointiteration(max_iter=10000, relaxations=[0.4, 0.6], tolerance=0.00001)
 class ThrustBasedUnified(UnifiedMomentum):
     def __init__(self, beta=0.1403, cached=True):
         super().__init__(beta=beta, cached=cached)
