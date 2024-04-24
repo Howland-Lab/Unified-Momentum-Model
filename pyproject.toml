@@ -5,27 +5,29 @@ description = ""
 authors = ["Jaime Liew <jaimeliew1@gmail.com>"]
 license = "MIT"
 readme = "README.md"
-packages = [{include = "UnifiedMomentumModel"}]
+packages = [{ include = "UnifiedMomentumModel" }]
 
 [tool.poetry.dependencies]
 python = "^3.8"
 numpy = ">=1.16"
 scipy = ">=1.6"
-matplotlib = ">=3.6"
 tqdm = "^4.66.1"
 polars = "^0.19.13"
-jupyter = "^1.0.0"
-ipykernel = "^6.26.0"
-dualitic = {git = "https://github.com/jaimeliew1/Dualitic.git", optional = true}
+matplotlib = { version = ">=3.6", optional = true }
+jupyter = { version = "^1.0.0", optional = true }
+ipykernel = { version = "^6.26.0", optional = true }
+dualitic = { git = "https://github.com/jaimeliew1/Dualitic.git", optional = true }
 
 
 [tool.poetry.extras]
 autodiff = ["dualitic"]
+examples = ["matplotlib"]
+figures = ["matplotlib", "jupyter", "ipykernel", "dualitic"]
 
 [tool.poetry.group.dev.dependencies]
 isort = "^5.12.0"
 ipython = ">=7"
-black = {extras = ["jupyter"], version = "^23.9.1"}
+black = { extras = ["jupyter"], version = "^23.9.1" }
 pytest = "^7.4.3"
 pytest-cov = "^4.1.0"
 

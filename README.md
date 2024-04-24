@@ -18,7 +18,7 @@ pip install git+https://github.com/Howland-Lab/Unified-Momentum-Model.git
 
 
 ### Install from cloned repository
-If you prefer to download the repository first, you can first clone the repository, either using http:
+If you prefer to download the repository first (for example, to run the example and paper figure scripts), you can first clone the repository, either using http:
 ```bash
 git clone https://github.com/Howland-Lab/Unified-Momentum-Model.git
 ```
@@ -26,11 +26,11 @@ or ssh:
 ```bash
 git clone git@github.com:Howland-Lab/Unified-Momentum-Model.git
 ```
-then, install locally using pip.
+then, install locally using pip using `pip install .` for the base installation, or `pip install .[figures]` to install the extra dependencies required to run the examples and paper figure scripts and notebooks:
 
 ```
 cd Unified-Momentum-Model
-pip install .
+pip install .[figures]
 ```
 # Usage
 This repository contains 
@@ -38,7 +38,7 @@ This repository contains
 2) working example scripts using the package in Python (see the `examples` folder)
 3) Jupyter notebooks which recreate all figures in the manuscript (see the `figures` folder).
 ## Package usage
-A `UnifiedMomentum` model object can be instantiated and can be called to solve the actuator disk model model for a given local thrust coefficient, $C_T'$ and rotor yaw angle, $\gamma$. Here is a short python script which demonstrates this:
+A `UnifiedMomentum` model object can be instantiated and can be called to solve the actuator disk model model for a given local thrust coefficient, $C_T'$ and rotor yaw angle in radians, $\gamma$. Here is a short python script which demonstrates this:
 
 ```python
 from UnifiedMomentumModel.Momentum import UnifiedMomentum
