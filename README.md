@@ -1,4 +1,4 @@
-<!-- todo! DOI badge -->
+[![DOI](https://zenodo.org/badge/719133394.svg)](https://zenodo.org/doi/10.5281/zenodo.10524066)
 
 # Unified Momentum Model
 This repository contains a reference implementation of the Unified Momentum Model presented in the associated manuscript titled **Unified Momentum Model for Rotor Aerodynamics Across Operating Regimes**. The Unified Momentum Model is a novel approach for modeling a yaw-misaligned actuator disk induction and outlet velocities, including negative and high thrust regimes. 
@@ -56,7 +56,10 @@ print(f"Rotor thrust coefficient: {solution.Ct}")
 ```
 
 
+# Citation
+This code repository can be cited as follows:
 
+Liew, J., S. Heck, K., & Howland, M. F. (2023). Howland-Lab/Unified-Momentum-Model: Submission pre-release (v0.3.0). Zenodo. https://doi.org/10.5281/zenodo.10524066
 # Contributions
 If you have suggestions or issues with the Unified Momentum Model, feel free to raise an issue or submit a pull request.
 
