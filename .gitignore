@@ -3,6 +3,7 @@
 
 .vscode/
 fig/
+source_data/
 
 ### Python ###
 # Byte-compiled / optimized / DLL files
