@@ -885,6 +885,20 @@ unicode = ["unicodedata2 (>=15.1.0)"]
 woff = ["brotli (>=1.0.1)", "brotlicffi (>=0.8.0)", "zopfli (>=0.1.4)"]
 
 [[package]]
+name = "foreach"
+version = "0.4.0"
+description = ""
+optional = false
+python-versions = "<4.0,>=3.7"
+files = [
+    {file = "foreach-0.4.0-py3-none-any.whl", hash = "sha256:2fd68a5fd03842604ed608ae478690b1c894075988d7c97b10d673f490d7d879"},
+    {file = "foreach-0.4.0.tar.gz", hash = "sha256:d7419a805800ee603f1297928d20355596f677ae58c05f3731304066912fec12"},
+]
+
+[package.dependencies]
+tqdm = ">=4.66.1,<5.0.0"
+
+[[package]]
 name = "fqdn"
 version = "1.5.1"
 description = "Validates fully-qualified domain names against RFC 1123, so that they are acceptable to modern bowsers"
@@ -3160,4 +3174,4 @@ figures = ["dualitic", "ipykernel", "jupyter", "matplotlib"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "df1ee77ec8aa68c4a95ea184d0aca4c5bc5ad4e9ec3bf1be9ceb1867026d14a0"
+content-hash = "cc28bd7f225bd52b7fd6c1ad16268d015fc219f2fc977c9f831c1c8626a71268"
