@@ -144,8 +144,9 @@ class Heck(MomentumBase):
 
 @fixedpointiteration(max_iter=500, relaxation=0.25, tolerance=0.00001)
 class UnifiedMomentum(MomentumBase):
-    def __init__(self, beta=0.1403, cached=True, **kwargs):
+    def __init__(self, beta=0.1403, cached=True, v4_correction=1., **kwargs):
         self.beta = beta
+        self.v4_correction = v4_correction
 
         if cached and PressureTable.CACHE_FN.exists():
             # load cache
@@ -207,7 +208,7 @@ class UnifiedMomentum(MomentumBase):
         ) - u4
 
         # Eq. 3 - Lateral outlet velocity in residual form.
-        e_v4 = -(1 / 4) * Ctprime * (1 - an) ** 2 * np.sin(yaw) * np.cos(yaw) ** 2 - v4
+        e_v4 = -self.v4_correction * (1 / 4) * Ctprime * (1 - an) ** 2 * np.sin(yaw) * np.cos(yaw) ** 2 - v4
 
         # Eq. 5 - Outlet pressure drop in residual form.
         e_dp = (
