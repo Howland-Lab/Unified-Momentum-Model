@@ -3,7 +3,8 @@
 # Unified Momentum Model
 This repository contains a reference implementation of the Unified Momentum Model presented in the associated manuscript titled **Unified Momentum Model for Rotor Aerodynamics Across Operating Regimes**. The Unified Momentum Model is a novel approach for modeling a yaw-misaligned actuator disk induction and outlet velocities, including negative and high thrust regimes. 
 
-It builds on the existing actuator disk model described in [Heck, K. S., Johlas, H. M., & Howland, M. F. (2023). ***Modelling the induction, thrust and power of a yaw-misaligned actuator disk***. Journal of Fluid Mechanics](https://doi.org/10.1017/jfm.2023.129).
+The Unified Momentum Model is described in the associated publication available open-access in Nature Communications: [Liew, J., Heck, K. S., & Howland, M.F. (2024) **Unified momentum model for rotor aerodynamics across operating regimes**. *Nat Commun* 15, 6658](https://doi.org/10.1038/s41467-024-50756-5).
+
 
 
 
