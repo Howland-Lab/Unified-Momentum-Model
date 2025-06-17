@@ -98,7 +98,7 @@ def fixedpointiteration(
     def decorator(cls: FixedPointIterationCompatible) -> Callable:
         def call(self, *args, **kwargs):
             if hasattr(self, "pre_process"):
-                self.pre_process(*args, **kwargs)
+                args, kwargs = self.pre_process(*args, **kwargs)
 
             callback = self.callback if hasattr(self, "callback") else None
 

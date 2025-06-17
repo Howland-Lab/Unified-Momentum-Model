@@ -34,6 +34,16 @@ class EquidistantRectGridEven(Geometry):
 
         self.xmesh, self.ymesh = np.meshgrid(self.x, self.y, indexing="ij")
 
+def calc_eff_yaw(yaw, tilt):
+    """Returns the effective angle combining yaw and tilt"""
+    return np.arccos(np.cos(yaw) * np.cos(tilt))
+
+def eff_yaw_inv_rotation(eff_u, eff_v, eff_w, eff_yaw, yaw, tilt):
+    cos_a = np.sin(yaw) / np.sin(eff_yaw)
+    sin_a = - (np.sin(tilt) * np.cos(yaw)) / np.sin(tilt)
+    rot_mat = np.array([[1, 0, 0], [0, cos_a, -1 * sin_a], [0, sin_a, cos_a]])
+    vec = np.array([eff_u, eff_v, eff_w])
+    return rot_mat @ vec
 
 if __name__ == "__main__":
     from pathlib import Path
