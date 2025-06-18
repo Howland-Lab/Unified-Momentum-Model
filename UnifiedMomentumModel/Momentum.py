@@ -48,25 +48,27 @@ class LimitedHeck(MomentumBase):
     array arguments.
     """
 
-    def __call__(self, Ctprime: float, yaw: float, **kwargs) -> MomentumSolution:
+    def __call__(self, Ctprime: float, yaw: float = 0, tilt: float = 0, **kwargs) -> MomentumSolution:
         """
         Args:
             Ctprime (float): Rotor thrust coefficient.
             yaw (float): Rotor yaw angle (radians).
+            tilt (float): Rotor tilt angle(radians)
 
         Returns:
             Tuple[float, float, float]: induction and outlet velocities.
         """
-
-        a = Ctprime * np.cos(yaw) ** 2 / (4 + Ctprime * np.cos(yaw) ** 2)
-        u4 = (4 - Ctprime * np.cos(yaw) ** 2) / (4 + Ctprime * np.cos(yaw) ** 2)
+        eff_yaw = calc_eff_yaw(yaw, tilt)
+        a = Ctprime * np.cos(eff_yaw) ** 2 / (4 + Ctprime * np.cos(eff_yaw) ** 2)
+        u4 = (4 - Ctprime * np.cos(eff_yaw) ** 2) / (4 + Ctprime * np.cos(eff_yaw) ** 2)
         v4 = (
-            -(4 * Ctprime * np.sin(yaw) * np.cos(yaw) ** 2)
-            / (4 + Ctprime * np.cos(yaw) ** 2) ** 2
+            -(4 * Ctprime * np.sin(eff_yaw) * np.cos(eff_yaw) ** 2)
+            / (4 + Ctprime * np.cos(eff_yaw) ** 2) ** 2
         )
         dp = np.zeros_like(a)
         x0 = np.inf * np.ones_like(a)
-        return MomentumSolution(Ctprime, yaw, a, u4, v4, x0, dp)
+        [u4, v4, w4] = eff_yaw_inv_rotation(u4, v4, 0, eff_yaw, yaw, tilt)
+        return MomentumSolution(Ctprime, yaw, tilt, a, u4, v4, w4, x0, dp)
 
 
 @fixedpointiteration(max_iter=500, tolerance=0.00001, relaxation=0.1)
@@ -90,11 +92,15 @@ class Heck(MomentumBase):
         """
         self.v4_correction = v4_correction
 
-    def initial_guess(self, Ctprime, yaw):
-        sol = LimitedHeck()(Ctprime, yaw)
+    def pre_process(self, Ctprime, yaw = 0, tilt = 0):
+        eff_yaw = calc_eff_yaw(yaw, tilt)
+        return (self, Ctprime, eff_yaw), {'yaw': yaw, 'tilt': tilt}
+
+    def initial_guess(self, Ctprime, eff_yaw = 0, **kwargs):
+        sol = LimitedHeck()(Ctprime, eff_yaw)
         return sol.an, sol.u4, sol.v4
 
-    def residual(self, x: np.ndarray, Ctprime: float, yaw: float) -> np.ndarray:
+    def residual(self, x: np.ndarray, Ctprime: float, eff_yaw: float, **kwargs: float) -> np.ndarray:
         """
         Residual function of yawed-actuator disk model in Eq. 2.15.
 
@@ -108,35 +114,38 @@ class Heck(MomentumBase):
         """
 
         a, u4, v4 = x
-        e_a = 1 - np.sqrt(1 - u4**2 - v4**2) / (np.sqrt(Ctprime) * np.cos(yaw)) - a
+        e_a = 1 - np.sqrt(1 - u4**2 - v4**2) / (np.sqrt(Ctprime) * np.cos(eff_yaw)) - a
 
-        e_u4 = (1 - 0.5 * Ctprime * (1 - a) * np.cos(yaw) ** 2) - u4
+        e_u4 = (1 - 0.5 * Ctprime * (1 - a) * np.cos(eff_yaw) ** 2) - u4
 
         e_v4 = (
             -self.v4_correction
             * 0.25
             * Ctprime
             * (1 - a) ** 2
-            * np.sin(yaw)
-            * np.cos(yaw) ** 2
+            * np.sin(eff_yaw)
+            * np.cos(eff_yaw) ** 2
             - v4
         )
 
         return np.array([e_a, e_u4, e_v4])
 
-    def post_process(self, result, Ctprime: float, yaw: float):
+    def post_process(self, result, Ctprime: float, eff_yaw: float, yaw: float, tilt: float):
         if result.converged:
             a, u4, v4 = result.x
+            [u4, v4, w4] = eff_yaw_inv_rotation(u4, v4, 0, eff_yaw, yaw, tilt)
         else:
-            a, u4, v4 = np.nan * np.zeros_like([Ctprime, Ctprime, Ctprime])
+            a, u4, v4, w4 = np.nan * np.zeros_like([Ctprime, Ctprime, Ctprime, Ctprime])
         dp = np.zeros_like(a)
         x0 = np.inf * np.ones_like(a)
         return MomentumSolution(
             Ctprime,
             yaw,
+            tilt,
             a,
             u4,
             v4,
+            w4,
             x0,
             dp,
             niter=result.niter,
