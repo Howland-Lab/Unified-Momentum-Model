@@ -53,10 +53,10 @@ class LimitedHeck(MomentumBase):
         Args:
             Ctprime (float): Rotor thrust coefficient.
             yaw (float): Rotor yaw angle (radians).
-            tilt (float): Rotor tilt angle(radians)
+            tilt (float): Rotor tilt angle(radians).
 
         Returns:
-            Tuple[float, float, float]: induction and outlet velocities.
+            MomentumSolution calculated by LimitedHeck Model.
         """
         eff_yaw = calc_eff_yaw(yaw, tilt)
         a = Ctprime * np.cos(eff_yaw) ** 2 / (4 + Ctprime * np.cos(eff_yaw) ** 2)
@@ -93,6 +93,7 @@ class Heck(MomentumBase):
         self.v4_correction = v4_correction
 
     def pre_process(self, Ctprime, yaw = 0, tilt = 0):
+        # switch reference frame to a "yaw-only" frame where y' is aligned with the lateral wake
         eff_yaw = calc_eff_yaw(yaw, tilt)
         return (self, Ctprime, eff_yaw), {'yaw': yaw, 'tilt': tilt}
 
@@ -108,6 +109,7 @@ class Heck(MomentumBase):
             x (np.ndarray): (a, u4, v4)
             Ctprime (float): Rotor thrust coefficient.
             yaw (float): Rotor yaw angle (radians).
+            tilt (float): Rotor tilt angle (radians).
 
         Returns:
             np.ndarray: residuals of induction and outlet velocities.
@@ -133,6 +135,7 @@ class Heck(MomentumBase):
     def post_process(self, result, Ctprime: float, eff_yaw: float, yaw: float, tilt: float):
         if result.converged:
             a, u4, v4 = result.x
+            # rotate back into ground frame from "yaw-only" frame
             [u4, v4, w4] = eff_yaw_inv_rotation(u4, v4, 0, eff_yaw, yaw, tilt)
         else:
             a, u4, v4, w4 = np.nan * np.zeros_like([Ctprime, Ctprime, Ctprime, Ctprime])
@@ -170,6 +173,7 @@ class UnifiedMomentum(MomentumBase):
             self.nonlinear_interpolator = PressureTable.make_interpolator(dps, xs, ps)
 
     def pre_process(self, Ctprime, yaw = 0, tilt = 0):
+        # switch reference frame to a "yaw-only" frame where y' is aligned with the lateral wake
         eff_yaw = calc_eff_yaw(yaw, tilt)
         return (self, Ctprime, eff_yaw), {'yaw': yaw, 'tilt': tilt}
 
@@ -241,13 +245,13 @@ class UnifiedMomentum(MomentumBase):
 
     def _nonlinear_pressure(self, Ctprime, eff_yaw, an, x0):
         CT = Ctprime * (1 - an) ** 2 * np.cos(eff_yaw) ** 2
-
         p_g = self.nonlinear_interpolator((CT / 2, x0))
         return p_g
 
     def post_process(self, result, Ctprime, eff_yaw, yaw, tilt):
         a, u4, v4, x0, dp = result.x
         p_g = self._nonlinear_pressure(Ctprime, eff_yaw, a, x0)
+        # rotate back into ground frame from "yaw-only" frame
         [u4, v4, w4] = eff_yaw_inv_rotation(u4, v4, 0, eff_yaw, yaw, tilt)
         return MomentumSolution(
             Ctprime,
@@ -298,6 +302,7 @@ class ThrustBasedUnified(UnifiedMomentum):
     def post_process(self, result, Ct, eff_yaw, yaw, tilt):
         a, u4, v4, x0, dp, Ctprime = result.x
         p_g = self._nonlinear_pressure(Ctprime, eff_yaw, a, x0)
+        # rotate back into ground frame from "yaw-only" frame
         [u4, v4, w4] = eff_yaw_inv_rotation(u4, v4, 0, eff_yaw, yaw, tilt)
         return MomentumSolution(
             Ctprime,

@@ -35,10 +35,18 @@ class EquidistantRectGridEven(Geometry):
         self.xmesh, self.ymesh = np.meshgrid(self.x, self.y, indexing="ij")
 
 def calc_eff_yaw(yaw, tilt):
-    """Returns the effective angle combining yaw and tilt"""
+    """
+    Returns the effective angle, combining yaw and tilt. This effectively changes the frame of
+    reference to one where the lateral wake velocity is aligned with the y' axis. This is
+    equivalent to just having yaw in the ground frame.
+    """
     return np.arccos(np.cos(yaw) * np.cos(tilt))
 
 def eff_yaw_inv_rotation(eff_u, eff_v, eff_w, eff_yaw, yaw, tilt):
+    """
+    Changes frame of reference back to the ground frame from the yaw-only frame created by
+    aligning the y' axis with the lateral wake velocity.
+    """
     cos_a = np.sin(yaw) / np.sin(eff_yaw)
     sin_a = - (np.sin(tilt) * np.cos(yaw)) / np.sin(tilt)
     rot_mat = np.array([[1, 0, 0], [0, cos_a, -1 * sin_a], [0, sin_a, cos_a]])
