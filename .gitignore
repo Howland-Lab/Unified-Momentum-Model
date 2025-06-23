@@ -4,6 +4,7 @@
 .vscode/
 fig/
 source_data/
+p_NL.csv
 
 ### Python ###
 # Byte-compiled / optimized / DLL files

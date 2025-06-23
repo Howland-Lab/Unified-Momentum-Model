@@ -94,14 +94,14 @@ class Heck(MomentumBase):
 
     def pre_process(self, Ctprime, yaw = 0, tilt = 0):
         # switch reference frame to a "yaw-only" frame where y' is aligned with the lateral wake
-        eff_yaw = calc_eff_yaw(yaw, tilt)
-        return (Ctprime, eff_yaw), {'yaw': yaw, 'tilt': tilt}
+        self.eff_yaw = calc_eff_yaw(yaw, tilt)
+        return
 
-    def initial_guess(self, Ctprime, eff_yaw = 0, **kwargs):
-        sol = LimitedHeck()(Ctprime, eff_yaw)
+    def initial_guess(self, Ctprime, *args, **kwargs):
+        sol = LimitedHeck()(Ctprime, self.eff_yaw)
         return sol.an, sol.u4, sol.v4
 
-    def residual(self, x: np.ndarray, Ctprime: float, eff_yaw: float, **kwargs: float) -> np.ndarray:
+    def residual(self, x: np.ndarray, Ctprime: float, *args: float, **kwargs: float) -> np.ndarray:
         """
         Residual function of yawed-actuator disk model in Eq. 2.15.
 
@@ -114,29 +114,28 @@ class Heck(MomentumBase):
         Returns:
             np.ndarray: residuals of induction and outlet velocities.
         """
-
         a, u4, v4 = x
-        e_a = 1 - np.sqrt(1 - u4**2 - v4**2) / (np.sqrt(Ctprime) * np.cos(eff_yaw)) - a
+        e_a = 1 - np.sqrt(1 - u4**2 - v4**2) / (np.sqrt(Ctprime) * np.cos(self.eff_yaw)) - a
 
-        e_u4 = (1 - 0.5 * Ctprime * (1 - a) * np.cos(eff_yaw) ** 2) - u4
+        e_u4 = (1 - 0.5 * Ctprime * (1 - a) * np.cos(self.eff_yaw) ** 2) - u4
 
         e_v4 = (
             -self.v4_correction
             * 0.25
             * Ctprime
             * (1 - a) ** 2
-            * np.sin(eff_yaw)
-            * np.cos(eff_yaw) ** 2
+            * np.sin(self.eff_yaw)
+            * np.cos(self.eff_yaw) ** 2
             - v4
         )
 
         return np.array([e_a, e_u4, e_v4])
 
-    def post_process(self, result, Ctprime: float, eff_yaw: float, yaw: float, tilt: float):
+    def post_process(self, result, Ctprime: float, yaw: float = 0, tilt: float = 0):
         if result.converged:
             a, u4, v4 = result.x
             # rotate back into ground frame from "yaw-only" frame
-            [u4, v4, w4] = eff_yaw_inv_rotation(u4, v4, eff_yaw, yaw, tilt)
+            [u4, v4, w4] = eff_yaw_inv_rotation(u4, v4, self.eff_yaw, yaw, tilt)
         else:
             a, u4, v4, w4 = np.nan * np.zeros_like([Ctprime, Ctprime, Ctprime, Ctprime])
         dp = np.zeros_like(a)
@@ -174,18 +173,18 @@ class UnifiedMomentum(MomentumBase):
 
     def pre_process(self, Ctprime, yaw = 0, tilt = 0):
         # switch reference frame to a "yaw-only" frame where y' is aligned with the lateral wake
-        eff_yaw = calc_eff_yaw(yaw, tilt)
-        return (Ctprime, eff_yaw), {'yaw': yaw, 'tilt': tilt}
+        self.eff_yaw = calc_eff_yaw(yaw, tilt)
+        return
 
-    def initial_guess(self, Ctprime, eff_yaw, **kwargs):
+    def initial_guess(self, Ctprime, *args, **kwargs):
         """Returns the initial guess for the solution variables."""
-        sol = LimitedHeck()(Ctprime, eff_yaw)
+        sol = LimitedHeck()(Ctprime, self.eff_yaw)
         x0 = 1000 * np.ones_like(Ctprime)
         dp = np.zeros_like(Ctprime)
 
         return sol.an, sol.u4, sol.v4, x0, dp
 
-    def residual(self, x: np.ndarray, Ctprime: float, eff_yaw: float, **kwargs: float) -> Tuple[float, ...]:
+    def residual(self, x: np.ndarray, Ctprime: float, *args: float, **kwargs: float) -> Tuple[float, ...]:
         """
         Returns the residuals of the Unified Momentum Model for the fixed point
         iteration. The equations referred to in this function are from the
@@ -195,38 +194,38 @@ class UnifiedMomentum(MomentumBase):
         if type(Ctprime) is float and Ctprime == 0:
             return 0 - an, 1 - u4, 0 - v4, 100 - x0, 0 - dp
 
-        p_g = self._nonlinear_pressure(Ctprime, eff_yaw, an, x0)
+        p_g = self._nonlinear_pressure(Ctprime, self.eff_yaw, an, x0)
 
         # Eq. 4 - Near wake length in residual form.
         e_x0 = (
-            np.cos(eff_yaw)
+            np.cos(self.eff_yaw)
             / (2 * self.beta)
             * (1 + u4)
             / np.abs(1 - u4)
-            * np.sqrt((1 - an) * np.cos(eff_yaw) / (1 + u4))
+            * np.sqrt((1 - an) * np.cos(self.eff_yaw) / (1 + u4))
         ) - x0
 
         # Eq. 1 - Rotor-normal induction in residual form.
         e_an = (
             1
             - np.sqrt(
-                -dp / (0.5 * Ctprime * np.cos(eff_yaw) ** 2)
-                + (1 - u4**2 - v4**2) / (Ctprime * np.cos(eff_yaw) ** 2)
+                -dp / (0.5 * Ctprime * np.cos(self.eff_yaw) ** 2)
+                + (1 - u4**2 - v4**2) / (Ctprime * np.cos(self.eff_yaw) ** 2)
             )
         ) - an
 
         # Eq. 2 - Streamwise outlet velocity in residual form.
         e_u4 = (
-            -(1 / 4) * Ctprime * (1 - an) * np.cos(eff_yaw) ** 2
+            -(1 / 4) * Ctprime * (1 - an) * np.cos(self.eff_yaw) ** 2
             + (1 / 2)
             + (1 / 2)
             * np.sqrt(
-                (1 / 2 * Ctprime * (1 - an) * np.cos(eff_yaw) ** 2 - 1) ** 2 - (4 * dp)
+                (1 / 2 * Ctprime * (1 - an) * np.cos(self.eff_yaw) ** 2 - 1) ** 2 - (4 * dp)
             )
         ) - u4
 
         # Eq. 3 - Lateral outlet velocity in residual form.
-        e_v4 = -self.v4_correction * (1 / 4) * Ctprime * (1 - an) ** 2 * np.sin(eff_yaw) * np.cos(eff_yaw) ** 2 - v4
+        e_v4 = -self.v4_correction * (1 / 4) * Ctprime * (1 - an) ** 2 * np.sin(self.eff_yaw) * np.cos(self.eff_yaw) ** 2 - v4
 
         # Eq. 5 - Outlet pressure drop in residual form.
         e_dp = (
@@ -234,7 +233,7 @@ class UnifiedMomentum(MomentumBase):
                 -(1 / (2 * np.pi))
                 * Ctprime
                 * (1 - an) ** 2
-                * np.cos(eff_yaw) ** 2
+                * np.cos(self.eff_yaw) ** 2
                 * np.arctan(1 / (2 * x0))
             )
             + p_g
@@ -247,11 +246,11 @@ class UnifiedMomentum(MomentumBase):
         p_g = self.nonlinear_interpolator((CT / 2, x0))
         return p_g
 
-    def post_process(self, result, Ctprime, eff_yaw, yaw, tilt):
+    def post_process(self, result, Ctprime, yaw = 0, tilt = 0):
         a, u4, v4, x0, dp = result.x
-        p_g = self._nonlinear_pressure(Ctprime, eff_yaw, a, x0)
+        p_g = self._nonlinear_pressure(Ctprime, self.eff_yaw, a, x0)
         # rotate back into ground frame from "yaw-only" frame
-        [u4, v4, w4] = eff_yaw_inv_rotation(u4, v4, eff_yaw, yaw, tilt)
+        [u4, v4, w4] = eff_yaw_inv_rotation(u4, v4, self.eff_yaw, yaw, tilt)
         return MomentumSolution(
             Ctprime,
             yaw,
@@ -275,7 +274,8 @@ class ThrustBasedUnified(UnifiedMomentum):
         super().__init__(beta=beta, cached=cached)
 
     def pre_process(self, *args, **kwargs):
-        return super().pre_process(*args, **kwargs)
+        super().pre_process(*args, **kwargs)
+        return
 
     def initial_guess(self, Ct, *args, **kwargs):
         an = 0.5 * Ct
@@ -287,22 +287,22 @@ class ThrustBasedUnified(UnifiedMomentum):
 
         return an, u4, v4, x0, dp, Ctprime
 
-    def residual(self, x, Ct, eff_yaw, **kwargs):
+    def residual(self, x, Ct, *args, **kwargs):
         an, u4, v4, x0, dp, Ctprime = x
 
         e_an, e_u4, e_v4, e_x0, e_dp = super().residual(
-            [an, u4, v4, x0, dp], Ctprime, eff_yaw
+            [an, u4, v4, x0, dp], Ctprime, self.eff_yaw
         )
 
         # Eq. 6 - thrust coefficient equation in residual form.
-        e_Ctprime = Ct / ((1 - an) ** 2 * np.cos(eff_yaw) ** 2) - Ctprime
+        e_Ctprime = Ct / ((1 - an) ** 2 * np.cos(self.eff_yaw) ** 2) - Ctprime
         return np.array([e_an, e_u4, e_v4, e_x0, e_dp, e_Ctprime])
 
-    def post_process(self, result, Ct, eff_yaw, yaw, tilt):
+    def post_process(self, result, Ct, yaw = 0, tilt = 0):
         a, u4, v4, x0, dp, Ctprime = result.x
-        p_g = self._nonlinear_pressure(Ctprime, eff_yaw, a, x0)
+        p_g = self._nonlinear_pressure(Ctprime, self.eff_yaw, a, x0)
         # rotate back into ground frame from "yaw-only" frame
-        [u4, v4, w4] = eff_yaw_inv_rotation(u4, v4, eff_yaw, yaw, tilt)
+        [u4, v4, w4] = eff_yaw_inv_rotation(u4, v4, self.eff_yaw, yaw, tilt)
         return MomentumSolution(
             Ctprime,
             yaw,

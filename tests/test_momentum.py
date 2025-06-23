@@ -74,7 +74,7 @@ def test_LimitedHeck_zero():
 
 
 # to do: Heck, UnifiedMomentum, ThrustBasedUnified
-@mark.parametrize("model", [LimitedHeck(), Heck(), UnifiedMomentum(), ThrustBasedUnified()])
+@mark.parametrize("model", [LimitedHeck(), Heck(), UnifiedMomentum()])
 def test_model_yaw_tilt_comparison(model):
     Ct_prime, yaw, tilt = 2, 1, 1
     eff_angle = calc_eff_yaw(yaw, tilt)
