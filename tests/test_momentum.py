@@ -72,15 +72,13 @@ def test_LimitedHeck_zero():
     expected = MomentumSolution(0, 0, 0, 0, 1, 0, 0, np.inf, 0)
     assert sol == expected
 
-
-# to do: Heck, UnifiedMomentum, ThrustBasedUnified
-@mark.parametrize("model", [LimitedHeck(), Heck(), UnifiedMomentum()])
-def test_model_yaw_tilt_comparison(model):
-    Ct_prime, yaw, tilt = 2, 1, 1
+@mark.parametrize("model, CT", [(LimitedHeck(), 1), (Heck(), 1), (UnifiedMomentum(), 3), (ThrustBasedUnified(), 0.5)])
+def test_model_yaw_tilt_comparison(model, CT):  # CT is CT' for LimitedHeck, Heck, and UnifiedMomentum, but is CT for ThrustBasedUnified
+    yaw, tilt = 1, 1  # in radians
     eff_angle = calc_eff_yaw(yaw, tilt)
-    yaw_sol = model(Ct_prime, yaw = eff_angle)
-    tilt_sol = model(Ct_prime, tilt = eff_angle)
-    yaw_tilt_sol = model(Ct_prime, yaw = yaw, tilt = tilt)
+    yaw_sol = model(CT, yaw = eff_angle)
+    tilt_sol = model(CT, tilt = eff_angle)
+    yaw_tilt_sol = model(CT, yaw = yaw, tilt = tilt)
     # check that yaw and tilt solutions are equivalent up to a -90 degree rotation
     assert yaw_sol.an == tilt_sol.an
     assert yaw_sol.u4 == tilt_sol.u4
