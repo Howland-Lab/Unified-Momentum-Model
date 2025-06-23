@@ -40,18 +40,23 @@ def calc_eff_yaw(yaw, tilt):
     reference to one where the lateral wake velocity is aligned with the y' axis. This is
     equivalent to just having yaw in the ground frame.
     """
-    return np.arccos(np.cos(yaw) * np.cos(tilt))
+    eff_yaw = yaw
+    if tilt != 0:
+        eff_yaw =  np.arccos(np.cos(yaw) * np.cos(tilt))
+    return eff_yaw
 
-def eff_yaw_inv_rotation(eff_u, eff_v, eff_w, eff_yaw, yaw, tilt):
+def eff_yaw_inv_rotation(eff_u, eff_v, eff_yaw, yaw, tilt):
     """
     Changes frame of reference back to the ground frame from the yaw-only frame created by
     aligning the y' axis with the lateral wake velocity.
     """
-    cos_a = np.sin(yaw) / np.sin(eff_yaw)
-    sin_a = - (np.sin(tilt) * np.cos(yaw)) / np.sin(tilt)
-    rot_mat = np.array([[1, 0, 0], [0, cos_a, -1 * sin_a], [0, sin_a, cos_a]])
-    vec = np.array([eff_u, eff_v, eff_w])
-    return rot_mat @ vec
+    vec = np.array([eff_u, eff_v, 0.0], dtype = float)
+    if tilt != 0:
+        cos_a = np.sin(yaw) / np.sin(eff_yaw)
+        sin_a = - (np.sin(tilt) * np.cos(yaw)) / np.sin(eff_yaw)
+        rot_mat = np.array([[1, 0, 0], [0, cos_a, -1 * sin_a], [0, sin_a, cos_a]])
+        vec = rot_mat @ vec
+    return vec
 
 if __name__ == "__main__":
     from pathlib import Path

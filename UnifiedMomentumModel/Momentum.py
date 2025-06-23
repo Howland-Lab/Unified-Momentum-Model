@@ -67,7 +67,7 @@ class LimitedHeck(MomentumBase):
         )
         dp = np.zeros_like(a)
         x0 = np.inf * np.ones_like(a)
-        [u4, v4, w4] = eff_yaw_inv_rotation(u4, v4, 0, eff_yaw, yaw, tilt)
+        [u4, v4, w4] = eff_yaw_inv_rotation(u4, v4, eff_yaw, yaw, tilt)
         return MomentumSolution(Ctprime, yaw, tilt, a, u4, v4, w4, x0, dp)
 
 
@@ -95,7 +95,7 @@ class Heck(MomentumBase):
     def pre_process(self, Ctprime, yaw = 0, tilt = 0):
         # switch reference frame to a "yaw-only" frame where y' is aligned with the lateral wake
         eff_yaw = calc_eff_yaw(yaw, tilt)
-        return (self, Ctprime, eff_yaw), {'yaw': yaw, 'tilt': tilt}
+        return (Ctprime, eff_yaw), {'yaw': yaw, 'tilt': tilt}
 
     def initial_guess(self, Ctprime, eff_yaw = 0, **kwargs):
         sol = LimitedHeck()(Ctprime, eff_yaw)
@@ -136,7 +136,7 @@ class Heck(MomentumBase):
         if result.converged:
             a, u4, v4 = result.x
             # rotate back into ground frame from "yaw-only" frame
-            [u4, v4, w4] = eff_yaw_inv_rotation(u4, v4, 0, eff_yaw, yaw, tilt)
+            [u4, v4, w4] = eff_yaw_inv_rotation(u4, v4, eff_yaw, yaw, tilt)
         else:
             a, u4, v4, w4 = np.nan * np.zeros_like([Ctprime, Ctprime, Ctprime, Ctprime])
         dp = np.zeros_like(a)
@@ -175,16 +175,15 @@ class UnifiedMomentum(MomentumBase):
     def pre_process(self, Ctprime, yaw = 0, tilt = 0):
         # switch reference frame to a "yaw-only" frame where y' is aligned with the lateral wake
         eff_yaw = calc_eff_yaw(yaw, tilt)
-        return (self, Ctprime, eff_yaw), {'yaw': yaw, 'tilt': tilt}
+        return (Ctprime, eff_yaw), {'yaw': yaw, 'tilt': tilt}
 
     def initial_guess(self, Ctprime, eff_yaw, **kwargs):
         """Returns the initial guess for the solution variables."""
         sol = LimitedHeck()(Ctprime, eff_yaw)
-
         x0 = 1000 * np.ones_like(Ctprime)
         dp = np.zeros_like(Ctprime)
 
-        return np.vstack([sol.an, sol.u4, sol.v4, x0, dp])
+        return sol.an, sol.u4, sol.v4, x0, dp
 
     def residual(self, x: np.ndarray, Ctprime: float, eff_yaw: float, **kwargs: float) -> Tuple[float, ...]:
         """
@@ -252,7 +251,7 @@ class UnifiedMomentum(MomentumBase):
         a, u4, v4, x0, dp = result.x
         p_g = self._nonlinear_pressure(Ctprime, eff_yaw, a, x0)
         # rotate back into ground frame from "yaw-only" frame
-        [u4, v4, w4] = eff_yaw_inv_rotation(u4, v4, 0, eff_yaw, yaw, tilt)
+        [u4, v4, w4] = eff_yaw_inv_rotation(u4, v4, eff_yaw, yaw, tilt)
         return MomentumSolution(
             Ctprime,
             yaw,
@@ -275,7 +274,7 @@ class ThrustBasedUnified(UnifiedMomentum):
     def __init__(self, beta=0.1403, cached=True):
         super().__init__(beta=beta, cached=cached)
 
-    def pre_process(*args, **kwargs):
+    def pre_process(self, *args, **kwargs):
         return super().pre_process(*args, **kwargs)
 
     def initial_guess(self, Ct, *args, **kwargs):
@@ -286,7 +285,7 @@ class ThrustBasedUnified(UnifiedMomentum):
         x0 = 100 * np.ones_like(Ct)
         Ctprime = np.sign(Ct)
 
-        return np.vstack([an, u4, v4, x0, dp, Ctprime])
+        return an, u4, v4, x0, dp, Ctprime
 
     def residual(self, x, Ct, eff_yaw, **kwargs):
         an, u4, v4, x0, dp, Ctprime = x
@@ -303,7 +302,7 @@ class ThrustBasedUnified(UnifiedMomentum):
         a, u4, v4, x0, dp, Ctprime = result.x
         p_g = self._nonlinear_pressure(Ctprime, eff_yaw, a, x0)
         # rotate back into ground frame from "yaw-only" frame
-        [u4, v4, w4] = eff_yaw_inv_rotation(u4, v4, 0, eff_yaw, yaw, tilt)
+        [u4, v4, w4] = eff_yaw_inv_rotation(u4, v4, eff_yaw, yaw, tilt)
         return MomentumSolution(
             Ctprime,
             yaw,
