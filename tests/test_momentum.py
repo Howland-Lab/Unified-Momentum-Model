@@ -80,25 +80,14 @@ def test_model_yaw_tilt_comparison(model):
     eff_angle = calc_eff_yaw(yaw, tilt)
     yaw_sol = model(Ct_prime, yaw = eff_angle)
     tilt_sol = model(Ct_prime, tilt = eff_angle)
-    # yaw_tilt_sol = model(Ct_prime, yaw = yaw, tilt = tilt)
-
+    yaw_tilt_sol = model(Ct_prime, yaw = yaw, tilt = tilt)
     # check that yaw and tilt solutions are equivalent up to a -90 degree rotation
     assert yaw_sol.an == tilt_sol.an
-    # assert yaw_sol.u4 == tilt_sol.u4
-    # assert yaw_sol.v4 == -tilt_sol.w4
-    # assert yaw_sol.w4 == 0 and tilt_sol.v4 == 0
-    # assert yaw_sol.x0 == tilt_sol.x0
-    # assert yaw_sol.dp == tilt_sol.dp
+    assert yaw_sol.u4 == tilt_sol.u4
+    assert yaw_sol.v4 == -tilt_sol.w4
+    assert yaw_sol.w4 == 0 and tilt_sol.v4 == 0
+    assert yaw_sol.x0 == tilt_sol.x0
+    assert yaw_sol.dp == tilt_sol.dp
 
-    # assert yaw_tilt_sol.v4 != 0 and yaw_tilt_sol.w4 != 0 
-    # assert approx(np.linalg.norm([yaw_tilt_sol.u4, yaw_tilt_sol.v4, yaw_tilt_sol.w4])) == approx(np.linalg.norm([yaw_sol.u4, yaw_sol.v4, yaw_sol.w4]))
-
-def test_Heck_yaw_tilt_comparison():
-    assert True
-
-def test_UnifiedMomentum_yaw_tilt_comparison():
-    assert True
-
-
-def test_ThrustBasedUnified_yaw_tilt_comparison():
-    assert True
+    assert yaw_tilt_sol.v4 != 0 and yaw_tilt_sol.w4 != 0 
+    assert approx(np.linalg.norm([yaw_tilt_sol.u4, yaw_tilt_sol.v4, yaw_tilt_sol.w4])) == approx(np.linalg.norm([yaw_sol.u4, yaw_sol.v4, yaw_sol.w4]))
