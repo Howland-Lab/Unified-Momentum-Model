@@ -30,12 +30,14 @@ class MomentumSolution:
     @property
     def Ct(self):
         """Returns the thrust coefficient Ct."""
-        return self.Ctprime * (1 - self.an) ** 2 * np.cos(self.yaw) ** 2
+        eff_yaw = calc_eff_yaw(self.yaw, self.tilt)
+        return self.Ctprime * (1 - self.an) ** 2 * np.cos(eff_yaw) ** 2
 
     @property
     def Cp(self):
         """Returns the power coefficient Cp."""
-        return self.Ctprime * ((1 - self.an) * np.cos(self.yaw)) ** 3
+        eff_yaw = calc_eff_yaw(self.yaw, self.tilt)
+        return self.Ctprime * ((1 - self.an) * np.cos(eff_yaw)) ** 3
 
 
 class MomentumBase(metaclass=ABCMeta):

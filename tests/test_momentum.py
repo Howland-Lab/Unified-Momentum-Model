@@ -4,6 +4,11 @@ from pytest import approx, mark
 from UnifiedMomentumModel.Momentum import MomentumSolution, LimitedHeck, Heck, UnifiedMomentum, ThrustBasedUnified
 from UnifiedMomentumModel.Utilities.Geometry import calc_eff_yaw
 
+tilts = [0, 10, 20, 30]
+model = UnifiedMomentum()
+yaw_sol = model(Ctprime = 1, yaw = np.deg2rad(10), tilt = 0).Cp
+tilt_sol = model(Ctprime = 1, yaw = 0, tilt = np.deg2rad(10)).Cp
+
 
 def test_MomentumSolution_constructors():
     # default constructor
@@ -21,6 +26,7 @@ def test_MomentumSolution_constructors():
     sol3 = MomentumSolution(Ctprime, yaw, tilt, an, u4, v4, w4, x0, dp, niter=2)
     assert sol3.niter == 2, "MomentumSolution optional parameter niter not setting incorrectly "
     # constructor with optional parameter beta
+    tilt = 0  # value used for previous tests to maintain values
     sol4 = MomentumSolution(Ctprime, yaw, tilt, an, u4, v4, w4, x0, dp, beta=1)
     assert sol4.beta == 1, "MomentumSolution optional parameter beta not setting incorrectly "
     assert sol4.Ct == approx(0.0729816)
@@ -86,6 +92,7 @@ def test_model_yaw_tilt_comparison(model, CT):  # CT is CT' for LimitedHeck, Hec
     assert yaw_sol.w4 == 0 and tilt_sol.v4 == 0
     assert yaw_sol.x0 == tilt_sol.x0
     assert yaw_sol.dp == tilt_sol.dp
-
     assert yaw_tilt_sol.v4 != 0 and yaw_tilt_sol.w4 != 0 
     assert approx(np.linalg.norm([yaw_tilt_sol.u4, yaw_tilt_sol.v4, yaw_tilt_sol.w4])) == approx(np.linalg.norm([yaw_sol.u4, yaw_sol.v4, yaw_sol.w4]))
+    assert yaw_sol.Cp == tilt_sol.Cp and yaw_sol.Cp == yaw_tilt_sol.Cp
+    assert yaw_sol.Ct == tilt_sol.Ct and yaw_sol.Ct == yaw_tilt_sol.Ct
