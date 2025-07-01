@@ -4,12 +4,6 @@ from pytest import approx, mark
 from UnifiedMomentumModel.Momentum import MomentumSolution, LimitedHeck, Heck, UnifiedMomentum, ThrustBasedUnified
 from UnifiedMomentumModel.Utilities.Geometry import calc_eff_yaw
 
-tilts = [0, 10, 20, 30]
-model = UnifiedMomentum()
-yaw_sol = model(Ctprime = 1, yaw = np.deg2rad(10), tilt = 0).Cp
-tilt_sol = model(Ctprime = 1, yaw = 0, tilt = np.deg2rad(10)).Cp
-
-
 def test_MomentumSolution_constructors():
     # default constructor
     Ctprime, yaw, tilt, an, u4, v4, w4, x0, dp = 1, 1, 1, 0.5, 1, 1, 0, 1, 1
