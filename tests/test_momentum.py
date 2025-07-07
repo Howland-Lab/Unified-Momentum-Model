@@ -74,19 +74,22 @@ def test_LimitedHeck_zero():
 
 @mark.parametrize("model, CT", [(LimitedHeck(), 1), (Heck(), 1), (UnifiedMomentum(), 3), (ThrustBasedUnified(), 0.5)])
 def test_model_yaw_tilt_comparison(model, CT):  # CT is CT' for LimitedHeck, Heck, and UnifiedMomentum, but is CT for ThrustBasedUnified
-    yaw, tilt = 1, 1  # in radians
-    eff_angle = calc_eff_yaw(yaw, tilt)
-    yaw_sol = model(CT, yaw = eff_angle)
-    tilt_sol = model(CT, tilt = eff_angle)
-    yaw_tilt_sol = model(CT, yaw = yaw, tilt = tilt)
-    # check that yaw and tilt solutions are equivalent up to a -90 degree rotation
-    assert yaw_sol.an == tilt_sol.an
-    assert yaw_sol.u4 == tilt_sol.u4
-    assert yaw_sol.v4 == -tilt_sol.w4
-    assert yaw_sol.w4 == 0 and tilt_sol.v4 == 0
-    assert yaw_sol.x0 == tilt_sol.x0
-    assert yaw_sol.dp == tilt_sol.dp
-    assert yaw_tilt_sol.v4 != 0 and yaw_tilt_sol.w4 != 0 
-    assert approx(np.linalg.norm([yaw_tilt_sol.u4, yaw_tilt_sol.v4, yaw_tilt_sol.w4])) == approx(np.linalg.norm([yaw_sol.u4, yaw_sol.v4, yaw_sol.w4]))
-    assert yaw_sol.Cp == tilt_sol.Cp and yaw_sol.Cp == yaw_tilt_sol.Cp
-    assert yaw_sol.Ct == tilt_sol.Ct and yaw_sol.Ct == yaw_tilt_sol.Ct
+    for (yaw, tilt) in [(1, 1), (1, -1), (-1, 1), (-1, -1)]:
+        print("A")
+        eff_angle = calc_eff_yaw(yaw, tilt)
+        yaw_sol = model(CT, yaw = eff_angle)
+        tilt_sol = model(CT, tilt = eff_angle)
+        yaw_tilt_sol = model(CT, yaw = yaw, tilt = tilt)
+        # check that yaw and tilt solutions are equivalent up to a -90 degree rotation
+        assert yaw_sol.an == tilt_sol.an
+        assert yaw_sol.u4 == tilt_sol.u4
+        assert np.abs(yaw_sol.v4) == np.abs(tilt_sol.w4)
+        assert yaw_sol.w4 == 0 and tilt_sol.v4 == 0
+        assert yaw_sol.x0 == tilt_sol.x0
+        assert yaw_sol.dp == tilt_sol.dp
+        assert yaw_tilt_sol.v4 != 0 and yaw_tilt_sol.w4 != 0
+        assert np.sign(yaw) == np.sign(-1 * yaw_tilt_sol.v4)
+        assert np.sign(tilt) == np.sign(yaw_tilt_sol.w4)
+        assert approx(np.linalg.norm([yaw_tilt_sol.u4, yaw_tilt_sol.v4, yaw_tilt_sol.w4])) == approx(np.linalg.norm([yaw_sol.u4, yaw_sol.v4, yaw_sol.w4]))
+        assert yaw_sol.Cp == tilt_sol.Cp and yaw_sol.Cp == yaw_tilt_sol.Cp
+        assert yaw_sol.Ct == tilt_sol.Ct and yaw_sol.Ct == yaw_tilt_sol.Ct
