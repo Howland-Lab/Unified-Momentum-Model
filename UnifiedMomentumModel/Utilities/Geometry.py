@@ -50,13 +50,20 @@ def eff_yaw_inv_rotation(eff_u, eff_v, eff_yaw, yaw, tilt):
     Changes frame of reference back to the ground frame from the yaw-only frame created by
     aligning the y' axis with the lateral wake velocity.
     """
-    vec = np.vstack([eff_u, eff_v, np.zeros_like(eff_v)], dtype = float)
+    u = eff_u  # u velocity is unchanged by rotation
+    eff_w = np.zeros_like(eff_v)
     if tilt != 0:
         cos_a = np.sin(yaw) / np.sin(eff_yaw)
         sin_a = - (np.sin(tilt) * np.cos(yaw)) / np.sin(eff_yaw)
-        rot_mat = np.array([[1, 0, 0], [0, cos_a, -1 * sin_a], [0, sin_a, cos_a]])
-        vec = rot_mat @ vec
-    return vec
+        # rot_mat = np.array([[1, 0, 0], [0, cos_a, -1 * sin_a], [0, sin_a, cos_a]])
+        # vec2 = rot_mat @ vec
+        # rotate eff_v back into y-z plane
+        v = cos_a * eff_v
+        w = sin_a * eff_v
+    else:
+        v = eff_v
+        w = 0 * v  # with no tilt, w4 is zero and the same type/length as v
+    return u, v, w
 
 if __name__ == "__main__":
     from pathlib import Path

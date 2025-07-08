@@ -69,7 +69,7 @@ class LimitedHeck(MomentumBase):
         )
         dp = np.zeros_like(a)
         x0 = np.inf * np.ones_like(a)
-        [u4, v4, w4] = eff_yaw_inv_rotation(u4, v4, eff_yaw, yaw, tilt)
+        u4, v4, w4 = eff_yaw_inv_rotation(u4, v4, eff_yaw, yaw, tilt)
         return MomentumSolution(Ctprime, yaw, tilt, a, u4, v4, w4, x0, dp)
 
 
@@ -137,7 +137,7 @@ class Heck(MomentumBase):
         if result.converged:
             a, u4, v4 = result.x
             # rotate back into ground frame from "yaw-only" frame
-            [u4, v4, w4] = eff_yaw_inv_rotation(u4, v4, self.eff_yaw, yaw, tilt)
+            u4, v4, w4 = eff_yaw_inv_rotation(u4, v4, self.eff_yaw, yaw, tilt)
         else:
             a, u4, v4, w4 = np.nan * np.zeros_like([Ctprime, Ctprime, Ctprime, Ctprime])
         dp = np.zeros_like(a)
@@ -252,7 +252,7 @@ class UnifiedMomentum(MomentumBase):
         a, u4, v4, x0, dp = result.x
         p_g = self._nonlinear_pressure(Ctprime, self.eff_yaw, a, x0)
         # rotate back into ground frame from "yaw-only" frame
-        [u4, v4, w4] = eff_yaw_inv_rotation(u4, v4, self.eff_yaw, yaw, tilt)
+        u4, v4, w4 = eff_yaw_inv_rotation(u4, v4, self.eff_yaw, yaw, tilt)
         return MomentumSolution(
             Ctprime,
             yaw,
@@ -304,7 +304,7 @@ class ThrustBasedUnified(UnifiedMomentum):
         a, u4, v4, x0, dp, Ctprime = result.x
         p_g = self._nonlinear_pressure(Ctprime, self.eff_yaw, a, x0)
         # rotate back into ground frame from "yaw-only" frame
-        [u4, v4, w4] = eff_yaw_inv_rotation(u4, v4, self.eff_yaw, yaw, tilt)
+        u4, v4, w4 = eff_yaw_inv_rotation(u4, v4, self.eff_yaw, yaw, tilt)
         return MomentumSolution(
             Ctprime,
             yaw,
