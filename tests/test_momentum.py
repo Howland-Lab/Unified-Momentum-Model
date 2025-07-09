@@ -35,7 +35,6 @@ def test_MomentumSolution_comparison():
     assert a == b
     assert a != c
 
-
 def test_LimitedHeck_aligned():
     model = LimitedHeck()
     sol = model(2, 0)
@@ -51,7 +50,6 @@ def test_LimitedHeck_aligned():
     assert sol.w4 == approx(0.0)
     assert sol.x0 == approx(np.inf)
 
-
 def test_LimitedHeck_misaligned():
     model = LimitedHeck()
     sol = model(2, np.deg2rad(10))
@@ -63,7 +61,6 @@ def test_LimitedHeck_misaligned():
     assert sol.v4 == approx(-0.038188728025758754)
     assert sol.w4 == approx(0)
     assert sol.x0 == approx(np.inf)
-
 
 def test_LimitedHeck_zero():
     model = LimitedHeck()
@@ -96,13 +93,13 @@ def test_model_yaw_tilt_comparison(model, CT):  # CT is CT' for LimitedHeck, Hec
 def test_model_output_type(model):  # CT is CT' for LimitedHeck, Heck, and UnifiedMomentum, but is CT for ThrustBasedUnified
     all_float_params = [0.5, 1, 1] # CT/CT', yaw, tilt
     solution = model(*all_float_params)
+    # assert results have same shape as input
     assert isinstance(solution.Cp, float)
     assert isinstance(solution.Ct, float)
     assert isinstance(solution.an, float)
     assert isinstance(solution.u4, float)
     assert isinstance(solution.v4, float)
     assert isinstance(solution.w4, float)
-    # assert type(sol.Cp) is np.float64 and type(sol.u4) is np.float64 and type(sol.w4) is np.float64
 
     some_float_params0 = [np.array([0.5]), 1, 1] # CT/CT', yaw, tilt
     some_float_params1 = [0.5, np.array([1]), 1] # CT/CT', yaw, tilt
