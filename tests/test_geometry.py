@@ -10,24 +10,26 @@ def test_calc_eff_yaw():
     assert approx(np.cos(calc_eff_yaw(yaw, tilt))) == approx(np.cos(yaw) * np.cos(tilt)), "Effective angle doesn't match spherical law of cosines."
 
 def test_eff_yaw_inv_rotation():
-    init_u4, init_v4 = 1, 1
-    init_wake_vels = [init_u4, init_v4, 0]  # velocity vector in the "yaw-only" frame of reference
+    init_u4, init_v4, init_w4 = 1, 1, 0
     yaw, tilt = 1, 1
-    assert (eff_yaw_inv_rotation(init_u4, init_v4, calc_eff_yaw(0, 0), 0, 0) == init_wake_vels).all(), "Wake velocities unchanged by rotation with no yaw and no tilt."
-    assert (eff_yaw_inv_rotation(init_u4, init_v4, calc_eff_yaw(yaw, 0), yaw, 0) == init_wake_vels).all(), "Wake velocities unchanged by rotation with non-zero yaw but no tilt."
 
-    wake_vels = eff_yaw_inv_rotation(init_u4, init_v4, calc_eff_yaw(0, tilt), 0, tilt)
-    assert wake_vels[0] == init_u4, "X-vector should remain unaffected by rotation with tilt"
-    assert approx(wake_vels[1]) == approx(0), "v4 should be zero in case with only tilt"
-    assert approx(wake_vels[2]) == -init_v4, "w4 should be non-zero and equal to -v4 (initial value) in case with only positive tilt"
+    wake_u, wake_v, wake_w = eff_yaw_inv_rotation(init_u4, init_v4, calc_eff_yaw(0, 0), 0, 0)
+    assert wake_u == init_u4 and wake_v == init_v4 and wake_w == init_w4, "Wake should remain unaffected rotation with no yaw or tilt"
 
-    wake_vels = eff_yaw_inv_rotation(init_u4, init_v4, calc_eff_yaw(0, -tilt), 0, -tilt)
-    assert approx(wake_vels[1]) == approx(0), "v4 should be zero in case with only tilt"
-    assert approx(wake_vels[2]) == init_v4, "w4 should be non-zero and equal to v4 (initial value) in case with only negative tilt"
+    wake_u, wake_v, wake_w = eff_yaw_inv_rotation(init_u4, init_v4, calc_eff_yaw(yaw, 0), yaw, 0)
+    assert wake_u == init_u4 and wake_v == init_v4 and wake_w == init_w4, "Wake should remain unaffected rotation with no tilt"
 
+    wake_u, wake_v, wake_w = eff_yaw_inv_rotation(init_u4, init_v4, calc_eff_yaw(0, tilt), 0, tilt)
+    assert wake_u == init_u4, "X-vector should remain unaffected by rotation with tilt"
+    assert approx(wake_v) == approx(0), "v4 should be zero in case with only tilt"
+    assert approx(wake_w) == -init_v4, "w4 should be non-zero and equal to -v4 (initial value) in case with only positive tilt"
 
-    wake_vels = eff_yaw_inv_rotation(init_u4, init_v4, calc_eff_yaw(yaw, tilt), yaw, tilt)
-    assert wake_vels[0] == init_u4, "X-vector should remain unaffected by rotation with yaw and tilt"
-    assert np.linalg.norm(init_wake_vels) == np.linalg.norm(wake_vels), "Vector in y-z plane should have the same magniutude before and after translation"
-    assert wake_vels[0] != 0, "w4 should be non-zero post rotation with tilt"
-    assert approx(np.arctan2(wake_vels[2], wake_vels[1])) == approx(np.arctan2(-np.sin(tilt) * np.cos(yaw), np.sin(yaw))), "Angle between v4 and u4 isn't equal to angle between normal vector and y-axis."
+    wake_u, wake_v, wake_w = eff_yaw_inv_rotation(init_u4, init_v4, calc_eff_yaw(0, -tilt), 0, -tilt)
+    assert approx(wake_v) == approx(0), "v4 should be zero in case with only tilt"
+    assert approx(wake_w) == init_v4, "w4 should be non-zero and equal to v4 (initial value) in case with only negative tilt"
+
+    wake_u, wake_v, wake_w  = eff_yaw_inv_rotation(init_u4, init_v4, calc_eff_yaw(yaw, tilt), yaw, tilt)
+    assert wake_u == init_u4, "X-vector should remain unaffected by rotation with yaw and tilt"
+    assert np.linalg.norm([init_u4, init_v4, init_w4]) == np.linalg.norm([wake_u, wake_v, wake_w]), "Vector in y-z plane should have the same magniutude before and after translation"
+    assert wake_w != 0, "w4 should be non-zero post rotation with tilt"
+    assert approx(np.arctan2(wake_w, wake_v)) == approx(np.arctan2(-np.sin(tilt) * np.cos(yaw), np.sin(yaw))), "Angle between v4 and u4 isn't equal to angle between normal vector and y-axis."

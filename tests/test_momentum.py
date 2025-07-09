@@ -26,7 +26,6 @@ def test_MomentumSolution_constructors():
     assert sol4.Ct == approx(0.0729816)
     assert sol4.Cp == approx(0.0197160756563)
 
-
 def test_MomentumSolution_comparison():
     Ctprime, yaw, tilt, an, u4, v4, w4, x0, dp = 1, 1, 0, 0.5, 1, 1, 0, 1, 1
     a = MomentumSolution(Ctprime, yaw, tilt, an, u4, v4, w4, x0, dp)
@@ -75,7 +74,6 @@ def test_LimitedHeck_zero():
 @mark.parametrize("model, CT", [(LimitedHeck(), 1), (Heck(), 1), (UnifiedMomentum(), 3), (ThrustBasedUnified(), 0.5)])
 def test_model_yaw_tilt_comparison(model, CT):  # CT is CT' for LimitedHeck, Heck, and UnifiedMomentum, but is CT for ThrustBasedUnified
     for (yaw, tilt) in [(1, 1), (1, -1), (-1, 1), (-1, -1)]:
-        print("A")
         eff_angle = calc_eff_yaw(yaw, tilt)
         yaw_sol = model(CT, yaw = eff_angle)
         tilt_sol = model(CT, tilt = eff_angle)
@@ -93,3 +91,31 @@ def test_model_yaw_tilt_comparison(model, CT):  # CT is CT' for LimitedHeck, Hec
         assert approx(np.linalg.norm([yaw_tilt_sol.u4, yaw_tilt_sol.v4, yaw_tilt_sol.w4])) == approx(np.linalg.norm([yaw_sol.u4, yaw_sol.v4, yaw_sol.w4]))
         assert yaw_sol.Cp == tilt_sol.Cp and yaw_sol.Cp == yaw_tilt_sol.Cp
         assert yaw_sol.Ct == tilt_sol.Ct and yaw_sol.Ct == yaw_tilt_sol.Ct
+
+@mark.parametrize("model", [LimitedHeck(), Heck(), UnifiedMomentum(), ThrustBasedUnified()])
+def test_model_output_type(model):  # CT is CT' for LimitedHeck, Heck, and UnifiedMomentum, but is CT for ThrustBasedUnified
+    all_float_params = [0.5, 1, 1] # CT/CT', yaw, tilt
+    sol = model(*all_float_params)
+    assert type(sol.Cp) is np.float64 and type(sol.u4) is np.float64 and type(sol.w4) is np.float64
+
+    some_float_params0 = [np.array([0.5]), 1, 1] # CT/CT', yaw, tilt
+    sol = model(*some_float_params0)
+    assert type(sol.Cp) is np.ndarray and type(sol.u4) is np.ndarray and type(sol.w4)is np.ndarray
+
+    some_float_params1 = [0.5, np.array([1]), 1] # CT/CT', yaw, tilt
+    sol = model(*some_float_params1)
+    assert type(sol.Cp) is np.ndarray and type(sol.u4) is np.ndarray and type(sol.w4)is np.ndarray
+
+    some_float_params2 = [0.5, 1, np.array([1])] # CT/CT', yaw, tilt
+    sol = model(*some_float_params2)
+    assert type(sol.Cp) is np.ndarray and type(sol.u4) is np.ndarray and type(sol.w4)is np.ndarray
+
+    no_float_params0 = [np.array([0.5]), np.array([1]), np.array([1])] # CT/CT', yaw, tilt
+    sol = model(*no_float_params0)
+    assert type(sol.Cp) is np.ndarray and type(sol.u4) is np.ndarray and type(sol.w4)is np.ndarray
+    assert sol.Cp.shape == (1,) and sol.u4.shape == (1,)
+
+    no_float_params1 = [np.array([0.5, 2.0]), np.array([1, 1]), np.array([1, 1])] # CT/CT', yaw, tilt
+    sol = model(*no_float_params1)
+    assert type(sol.Cp) is np.ndarray and type(sol.u4) is np.ndarray and type(sol.w4)is np.ndarray
+    assert sol.Cp.shape == (2,) and sol.u4.shape == (2,)
