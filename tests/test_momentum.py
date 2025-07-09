@@ -95,27 +95,35 @@ def test_model_yaw_tilt_comparison(model, CT):  # CT is CT' for LimitedHeck, Hec
 @mark.parametrize("model", [LimitedHeck(), Heck(), UnifiedMomentum(), ThrustBasedUnified()])
 def test_model_output_type(model):  # CT is CT' for LimitedHeck, Heck, and UnifiedMomentum, but is CT for ThrustBasedUnified
     all_float_params = [0.5, 1, 1] # CT/CT', yaw, tilt
-    sol = model(*all_float_params)
-    assert type(sol.Cp) is np.float64 and type(sol.u4) is np.float64 and type(sol.w4) is np.float64
+    solution = model(*all_float_params)
+    assert isinstance(solution.Cp, float)
+    assert isinstance(solution.Ct, float)
+    assert isinstance(solution.an, float)
+    assert isinstance(solution.u4, float)
+    assert isinstance(solution.v4, float)
+    assert isinstance(solution.w4, float)
+    # assert type(sol.Cp) is np.float64 and type(sol.u4) is np.float64 and type(sol.w4) is np.float64
 
     some_float_params0 = [np.array([0.5]), 1, 1] # CT/CT', yaw, tilt
-    sol = model(*some_float_params0)
-    assert type(sol.Cp) is np.ndarray and type(sol.u4) is np.ndarray and type(sol.w4)is np.ndarray
-
     some_float_params1 = [0.5, np.array([1]), 1] # CT/CT', yaw, tilt
-    sol = model(*some_float_params1)
-    assert type(sol.Cp) is np.ndarray and type(sol.u4) is np.ndarray and type(sol.w4)is np.ndarray
-
     some_float_params2 = [0.5, 1, np.array([1])] # CT/CT', yaw, tilt
-    sol = model(*some_float_params2)
-    assert type(sol.Cp) is np.ndarray and type(sol.u4) is np.ndarray and type(sol.w4)is np.ndarray
-
     no_float_params0 = [np.array([0.5]), np.array([1]), np.array([1])] # CT/CT', yaw, tilt
-    sol = model(*no_float_params0)
-    assert type(sol.Cp) is np.ndarray and type(sol.u4) is np.ndarray and type(sol.w4)is np.ndarray
-    assert sol.Cp.shape == (1,) and sol.u4.shape == (1,)
+    for param in [some_float_params0, some_float_params1, some_float_params2, no_float_params0]:
+        solution = model(*param)
+        # assert results have same shape as input
+        assert isinstance(solution.Cp, np.ndarray) and (solution.Cp.shape == (1,))
+        assert isinstance(solution.Ct, np.ndarray) and (solution.Ct.shape == (1,))
+        assert isinstance(solution.u4, np.ndarray) and (solution.u4.shape == (1,))
+        assert isinstance(solution.v4, np.ndarray) and (solution.v4.shape == (1,))
+        assert isinstance(solution.w4, np.ndarray) and (solution.w4.shape == (1,))
+        assert isinstance(solution.an, np.ndarray) and (solution.an.shape == (1,))
 
     no_float_params1 = [np.array([0.5, 2.0]), np.array([1, 1]), np.array([1, 1])] # CT/CT', yaw, tilt
-    sol = model(*no_float_params1)
-    assert type(sol.Cp) is np.ndarray and type(sol.u4) is np.ndarray and type(sol.w4)is np.ndarray
-    assert sol.Cp.shape == (2,) and sol.u4.shape == (2,)
+    solution = model(*no_float_params1)
+    # assert results have same shape as input
+    assert isinstance(solution.Cp, np.ndarray) and (solution.Cp.shape == (2,))
+    assert isinstance(solution.Ct, np.ndarray) and (solution.Ct.shape == (2,))
+    assert isinstance(solution.an, np.ndarray) and (solution.an.shape == (2,))
+    assert isinstance(solution.u4, np.ndarray) and (solution.u4.shape == (2,))
+    assert isinstance(solution.v4, np.ndarray) and (solution.v4.shape == (2,))
+    assert isinstance(solution.w4, np.ndarray) and (solution.w4.shape == (2,))
