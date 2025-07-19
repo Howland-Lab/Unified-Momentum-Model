@@ -11,17 +11,17 @@ from .Utilities.Geometry import calc_eff_yaw, eff_yaw_inv_rotation
 
 @dataclass
 class MomentumSolution:
-    """Stores the results of the Unified Momentum model solution."""
-
-    Ctprime: float
-    yaw: float
-    tilt: float
+    """Stores the results of a momentum model solution."""
+    Ctprime: Union[float, npt.ArrayLike]
+    yaw: Union[float, npt.ArrayLike]
     an: Union[float, npt.ArrayLike]
     u4: Union[float, npt.ArrayLike]
     v4: Union[float, npt.ArrayLike]
-    w4: Union[float, npt.ArrayLike]
     x0: Union[float, npt.ArrayLike]
     dp: Union[float, npt.ArrayLike]
+    # optional keyword paramters
+    tilt: Union[float, npt.ArrayLike] = 0.0
+    w4: Union[float, npt.ArrayLike] = 0.0
     dp_NL: Optional[Union[float, npt.ArrayLike]] = 0.0
     niter: Optional[int] = 1
     converged: Optional[bool] = True
@@ -46,19 +46,28 @@ class MomentumBase(metaclass=ABCMeta):
 
 class LimitedHeck(MomentumBase):
     """
-    Solves the limiting case when v_4 << u_4. (Eq. 2.19, 2.20). Also takes Numpy
-    array arguments.
+    Solves the limiting case of the Heck momentum model when v_4 << u_4. See Heck et al 2023: Eqs. 2.19 - 2.20.
+
+    __init__:
+        - Args: None
+        - Returns: LimitedHeck object
+        - Example:
+            >>> model = LimitedHeck()
+
+    __call__:
+        - Args:
+            - Ctprime (float or npt.ArrayLike): Local rotor thrust coefficient.
+            - yaw (float or npt.ArrayLike): Rotor yaw angle (radians). Postitive yaw positive is a CCW rotation viewed from above & v4 < 0.
+            - tilt (float or npt.ArrayLike): Rotor tilt angle(radians). Positive tilt is an upward facing rotor & w4 > 0.
+        - Returns: MomentumSolution calculated by LimitedHeck.
+        - Example:
+            >>> solution = model(1, yaw = 0, tilt = 0)
     """
 
     def __call__(self, Ctprime: float, yaw: float = 0, tilt: float = 0, **kwargs) -> MomentumSolution:
         """
-        Args:
-            Ctprime (float): Rotor thrust coefficient.
-            yaw (float): Rotor yaw angle (radians).
-            tilt (float): Rotor tilt angle(radians).
-
-        Returns:
-            MomentumSolution calculated by LimitedHeck Model.
+        Solves the limiting case of the Heck momentum model when v_4 << u_4.
+        See above class documentation on __call__ for more details.
         """
         eff_yaw = calc_eff_yaw(yaw, tilt)
         a = Ctprime * np.cos(eff_yaw) ** 2 / (4 + Ctprime * np.cos(eff_yaw) ** 2)
@@ -70,31 +79,47 @@ class LimitedHeck(MomentumBase):
         dp = np.zeros_like(a)
         x0 = np.inf * np.ones_like(a)
         u4, v4, w4 = eff_yaw_inv_rotation(u4, v4, eff_yaw, yaw, tilt)
-        return MomentumSolution(Ctprime, yaw, tilt, a, u4, v4, w4, x0, dp)
+        return MomentumSolution(Ctprime, yaw, a, u4, v4, x0, dp, tilt = tilt, w4 = w4)
 
 
 @fixedpointiteration(max_iter=500, tolerance=0.00001, relaxation=0.1)
 class Heck(MomentumBase):
     """
-    Solves the iterative momentum equation for an actuator disk model.
+    Solves the Heck momentum model for an actuator disk. See Heck et al, 2023. Uses an iterative solver.
+
+    __init__:
+        - Args:
+            - v4_correction (float, optional): The premultiplier of v4 in the Heck model.
+                A correction factor applied to v4, with a default value of 1.0, indicating no correction.
+                Lu (2023) suggests an empirical correction of 1.5.
+        - Returns: Heck object
+        - Example:
+            >>> model = Heck(v4_correction=1.5)
+
+    __call__:
+        - Args:
+            - Ctprime (float or npt.ArrayLike): Local rotor thrust coefficient.
+            - yaw (float or npt.ArrayLike): Rotor yaw angle (radians). Postitive yaw positive is a CCW rotation viewed from above & v4 < 0.
+            - tilt (float or npt.ArrayLike): Rotor tilt angle(radians). Positive tilt is an upward facing rotor & w4 > 0.
+        - Returns: MomentumSolution calculated by Heck.
+        - Example:
+            >>> solution = model([0.5, 1.0, 1.5], yaw = 0, tilt = 0)
+
+    child class:
+        - Requires any new setpoints to be keyword arguments to work with current pre_process function.
+        - User can define a new pre_process class, but is required to define an effective yaw (self.eff_yaw)
+            that combines the misalignment due to yaw and tilt into an effective angle.
+            See functions calc_eff_yaw and eff_yaw_inv_rotation in Geometry for more information.
     """
 
     def __init__(self, v4_correction: float = 1.0):
         """
-        Initialize the HeckModel instance.
-
-        Args:
-            v4_correction (float, optional): The premultiplier of v4 in the Heck
-            model. A correction factor applied to v4, with a default value of
-            1.0, indicating no correction. Lu (2023) suggests an empirical correction
-            of 1.5.
-
-        Example:
-            >>> model = HeckModel(v4_correction=1.5)
+        Initialize the Heck instance.
+        See above class documentation on __init__ for more details.
         """
         self.v4_correction = v4_correction
 
-    def pre_process(self, Ctprime, yaw = 0, tilt = 0):
+    def pre_process(self, Ctprime, yaw = 0, tilt = 0, **kwargs):
         # switch reference frame to a "yaw-only" frame where y' is aligned with the lateral wake
         self.eff_yaw = calc_eff_yaw(yaw, tilt)
         return
@@ -105,13 +130,11 @@ class Heck(MomentumBase):
 
     def residual(self, x: np.ndarray, Ctprime: float, *args: float, **kwargs: float) -> np.ndarray:
         """
-        Residual function of yawed-actuator disk model in Eq. 2.15.
+        Residual function of yawed-actuator disk model in Heck et al, 2023. See Eq. 2.15.
 
         Args:
             x (np.ndarray): (a, u4, v4)
             Ctprime (float): Rotor thrust coefficient.
-            yaw (float): Rotor yaw angle (radians).
-            tilt (float): Rotor tilt angle (radians).
 
         Returns:
             np.ndarray: residuals of induction and outlet velocities.
@@ -133,7 +156,7 @@ class Heck(MomentumBase):
 
         return np.array([e_a, e_u4, e_v4])
 
-    def post_process(self, result, Ctprime: float, yaw: float = 0, tilt: float = 0):
+    def post_process(self, result, Ctprime: float, yaw: float = 0, tilt: float = 0, **kwargs):
         if result.converged:
             a, u4, v4 = result.x
             # rotate back into ground frame from "yaw-only" frame
@@ -145,13 +168,13 @@ class Heck(MomentumBase):
         return MomentumSolution(
             Ctprime,
             yaw,
-            tilt,
             a,
             u4,
             v4,
-            w4,
             x0,
             dp,
+            tilt = tilt,
+            w4 = w4,
             niter=result.niter,
             converged=result.converged,
         )
@@ -159,7 +182,40 @@ class Heck(MomentumBase):
 
 @fixedpointiteration(max_iter=500, relaxation=0.25, tolerance=0.00001)
 class UnifiedMomentum(MomentumBase):
-    def __init__(self, beta=0.1403, cached=True, v4_correction=1., **kwargs):
+    """
+    Solves the UnifiedMomentum momentum model for an actuator disk. See Liew et al, 2024. Uses an iterative solver.
+
+    __init__:
+        - Args:
+            - beta (float, optional)
+            - cached (boolean, optional)
+            - v4_correction (float, optional): The premultiplier of v4 in the Heck model.
+                A correction factor applied to v4, with a default value of 1.0, indicating no correction.
+                Lu (2023) suggests an empirical correction of 1.5.
+        - Returns: UnifiedMomentum object
+        - Example:
+            >>> model = UnifiedMomentum(v4_correction=1.5)
+
+    __call__:
+        - Args:
+            - Ctprime (float or npt.ArrayLike): Local rotor thrust coefficient.
+            - yaw (float or npt.ArrayLike): Rotor yaw angle (radians). Postitive yaw positive is a CCW rotation viewed from above & v4 < 0.
+            - tilt (float or npt.ArrayLike): Rotor tilt angle(radians). Positive tilt is an upward facing rotor & w4 > 0.
+        - Returns: MomentumSolution calculated by UnifiedMomentum.
+        - Example:
+            >>> solution = model([0.5, 1.0, 1.5], yaw = 0, tilt = 0)
+
+    child class:
+        - Requires any new setpoints to be keyword arguments to work with current pre_process function.
+        - User can define a new pre_process class, but is required to define an effective yaw (self.eff_yaw)
+            that combines the misalignment due to yaw and tilt into an effective angle.
+            See functions calc_eff_yaw and eff_yaw_inv_rotation in Geometry for more information.
+    """
+    def __init__(self, beta=0.1403, cached=True, v4_correction=1.0, **kwargs):
+        """
+        Initialize the UnifiedMomentum instance.
+        See above class documentation on __init__ for more details.
+        """
         self.beta = beta
         self.v4_correction = v4_correction
 
@@ -173,7 +229,7 @@ class UnifiedMomentum(MomentumBase):
                 PressureTable.save_cache(dps, xs, ps)
             self.nonlinear_interpolator = PressureTable.make_interpolator(dps, xs, ps)
 
-    def pre_process(self, Ctprime, yaw = 0, tilt = 0):
+    def pre_process(self, Ctprime, yaw = 0, tilt = 0, **kwargs):
         # switch reference frame to a "yaw-only" frame where y' is aligned with the lateral wake
         self.eff_yaw = calc_eff_yaw(yaw, tilt)
         return
@@ -190,7 +246,7 @@ class UnifiedMomentum(MomentumBase):
         """
         Returns the residuals of the Unified Momentum Model for the fixed point
         iteration. The equations referred to in this function are from the
-        associated paper.
+        associated paper Liew et al 2024.
         """
         an, u4, v4, x0, dp = x
         if type(Ctprime) is float and Ctprime == 0:
@@ -248,7 +304,7 @@ class UnifiedMomentum(MomentumBase):
         p_g = self.nonlinear_interpolator((CT / 2, x0))
         return p_g
 
-    def post_process(self, result, Ctprime, yaw = 0, tilt = 0):
+    def post_process(self, result, Ctprime, yaw = 0, tilt = 0, **kwargs):
         a, u4, v4, x0, dp = result.x
         p_g = self._nonlinear_pressure(Ctprime, self.eff_yaw, a, x0)
         # rotate back into ground frame from "yaw-only" frame
@@ -256,14 +312,14 @@ class UnifiedMomentum(MomentumBase):
         return MomentumSolution(
             Ctprime,
             yaw,
-            tilt,
             a,
             u4,
             v4,
-            w4,
             x0,
             dp,
             dp_NL=p_g,
+            tilt = tilt,
+            w4 = w4,
             niter=result.niter,
             converged=result.converged,
             beta=self.beta,
@@ -272,6 +328,33 @@ class UnifiedMomentum(MomentumBase):
 
 @adaptivefixedpointiteration(max_iter=10000, relaxations=[0.4, 0.6], tolerance=0.00001)
 class ThrustBasedUnified(UnifiedMomentum):
+    """
+    Solves the ThrustBasedUnified momentum model for an actuator disk. See Liew et al, 2024. Uses an iterative solver.
+    Has one extra equation compared to the UnifiedMomentum solver that allows CT as an input rather than CT'.
+
+    __init__:
+        - Args:
+            - beta (float, optional)
+            - cached (boolean, optional)
+        - Returns: UnifiedMomentum object
+        - Example:
+            >>> model = ThrustBasedUnified()
+
+    __call__:
+        - Args:
+            - Ct (float or npt.ArrayLike): Global rotor thrust coefficient.
+            - yaw (float or npt.ArrayLike): Rotor yaw angle (radians). Postitive yaw positive is a CCW rotation viewed from above & v4 < 0.
+            - tilt (float or npt.ArrayLike): Rotor tilt angle(radians). Positive tilt is an upward facing rotor & w4 > 0.
+        - Returns: MomentumSolution calculated by ThrustBasedUnified.
+        - Example:
+            >>> solution = model([0.5, 1.0, 1.5], yaw = 0, tilt = 0)
+
+    child class:
+        - Requires any new setpoints to be keyword arguments to work with current pre_process function.
+        - User can define a new pre_process class, but is required to define an effective yaw (self.eff_yaw)
+            that combines the misalignment due to yaw and tilt into an effective angle.
+            See functions calc_eff_yaw and eff_yaw_inv_rotation in Geometry for more information.
+    """
     def __init__(self, beta=0.1403, cached=True):
         super().__init__(beta=beta, cached=cached)
 
@@ -300,7 +383,7 @@ class ThrustBasedUnified(UnifiedMomentum):
         e_Ctprime = Ct / ((1 - an) ** 2 * np.cos(self.eff_yaw) ** 2) - Ctprime
         return np.array([e_an, e_u4, e_v4, e_x0, e_dp, e_Ctprime])
 
-    def post_process(self, result, Ct, yaw = 0, tilt = 0):
+    def post_process(self, result, Ct, yaw = 0, tilt = 0, **kwargs):
         a, u4, v4, x0, dp, Ctprime = result.x
         p_g = self._nonlinear_pressure(Ctprime, self.eff_yaw, a, x0)
         # rotate back into ground frame from "yaw-only" frame
@@ -308,14 +391,14 @@ class ThrustBasedUnified(UnifiedMomentum):
         return MomentumSolution(
             Ctprime,
             yaw,
-            tilt,
             a,
             u4,
             v4,
-            w4,
             x0,
             dp,
             dp_NL=p_g,
+            tilt = tilt,
+            w4 = w4,
             niter=result.niter,
             converged=result.converged,
             beta=self.beta,

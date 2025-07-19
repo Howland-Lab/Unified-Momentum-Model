@@ -10,8 +10,9 @@ def test_calc_eff_yaw():
     assert approx(np.cos(calc_eff_yaw(yaw, tilt))) == approx(np.cos(yaw) * np.cos(tilt)), "Effective angle doesn't match spherical law of cosines."
 
 def test_eff_yaw_inv_rotation():
-    init_u4, init_v4, init_w4 = 1, 1, 0
-    yaw, tilt = 1, 1
+    # Note that these numbers are nonsense and this is to test the geometric rotations, not actual physics
+    yaw, tilt = 1, 1 # positive yaw -> v4 < 0 & positive tilt -> w4 > 0
+    init_u4, init_v4, init_w4 = 1, -1, 0
 
     wake_u, wake_v, wake_w = eff_yaw_inv_rotation(init_u4, init_v4, calc_eff_yaw(0, 0), 0, 0)
     assert wake_u == init_u4 and wake_v == init_v4 and wake_w == init_w4, "Wake should remain unaffected rotation with no yaw or tilt"
@@ -31,5 +32,6 @@ def test_eff_yaw_inv_rotation():
     wake_u, wake_v, wake_w  = eff_yaw_inv_rotation(init_u4, init_v4, calc_eff_yaw(yaw, tilt), yaw, tilt)
     assert wake_u == init_u4, "X-vector should remain unaffected by rotation with yaw and tilt"
     assert np.linalg.norm([init_u4, init_v4, init_w4]) == np.linalg.norm([wake_u, wake_v, wake_w]), "Vector in y-z plane should have the same magniutude before and after translation"
+    print(wake_v, wake_w)
     assert wake_w != 0, "w4 should be non-zero post rotation with tilt"
-    assert approx(np.arctan2(wake_w, wake_v)) == approx(np.arctan2(-np.sin(tilt) * np.cos(yaw), np.sin(yaw))), "Angle between v4 and u4 isn't equal to angle between normal vector and y-axis."
+    assert approx(np.arctan2(wake_w, wake_v) - np.pi) == approx(np.arctan2(-np.sin(tilt) * np.cos(yaw), np.sin(yaw))), "Angle between v4 and w4 isn't equal to angle between normal vector and y-axis."
