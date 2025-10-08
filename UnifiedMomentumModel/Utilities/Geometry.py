@@ -72,7 +72,7 @@ def calc_eff_yaw(yaw, tilt):
     eff_yaw = np.where(tilt == 0, yaw, np.arccos(np.cos(yaw) * np.cos(tilt)))
     return eff_yaw
 
-def eff_yaw_inv_rotation(eff_u, eff_v, eff_yaw, yaw, tilt):
+def eff_yaw_inv_rotation(eff_u, eff_v, eff_w, eff_yaw, yaw, tilt):
     """
     Changes frame of reference back to the ground frame from the yaw-only frame created by aligning the y' axis
     with the rotor normal. We can use the inverse rotation matrix as applied above in the calc_eff_yaw function.
@@ -90,8 +90,8 @@ def eff_yaw_inv_rotation(eff_u, eff_v, eff_yaw, yaw, tilt):
     sin_a = np.divide(-(np.sin(tilt) * np.cos(yaw)), sin_eff, where = tilt != 0, out = sin_a)
     # calculate wake velocities in the ground frame
     u = eff_u 
-    v = cos_a * eff_v
-    w = sin_a * eff_v
+    v = cos_a * eff_v - sin_a * eff_w
+    w = sin_a * eff_v + cos_a * eff_w
     return u, v, w
 
 if __name__ == "__main__":
