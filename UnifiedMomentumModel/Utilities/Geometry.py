@@ -36,7 +36,7 @@ class EquidistantRectGridEven(Geometry):
 
 def calc_eff_yaw(yaw, tilt):
     """
-    Returns the effective angle, combining yaw and tilt.
+    Returns the effective angle, combining yaw and tilt (in radians).
     
     Consider the rotation matrices:
     R_z(yaw) = [cos(yaw) -sin(yaw) 0; sin(yaw) cos(yaw) 0; 0 0 1]
