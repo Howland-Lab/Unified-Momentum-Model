@@ -244,7 +244,7 @@ class UnifiedMomentum(MomentumBase):
 
         return sol.an, sol.u4, sol.v4, x0, dp
 
-    def residual(self, x: np.ndarray, Ctprime: float, *args: float, **kwargs: float) -> Tuple[float, ...]:
+    def residual(self, x: np.ndarray, Ctprime: float, *args: float, e_x0: float = None, **kwargs: float) -> Tuple[float, ...]:
         """
         Returns the residuals of the Unified Momentum Model for the fixed point
         iteration. The equations referred to in this function are from the
@@ -257,13 +257,16 @@ class UnifiedMomentum(MomentumBase):
         p_g = self._nonlinear_pressure(Ctprime, self.eff_yaw, an, x0)
 
         # Eq. 4 - Near wake length in residual form.
-        e_x0 = (
-            np.cos(self.eff_yaw)
-            / (2 * self.beta)
-            * (1 + u4)
-            / np.abs(1 - u4)
-            * np.sqrt((1 - an) * np.cos(self.eff_yaw) / (1 + u4))
-        ) - x0
+        if e_x0 is None:
+            e_x0 = (
+                np.cos(self.eff_yaw)
+                / (2 * self.beta)
+                * (1 + u4)
+                / np.abs(1 - u4)
+                * np.sqrt((1 - an) * np.cos(self.eff_yaw) / (1 + u4))
+            ) - x0
+        else:
+            print("I am in the right spot")
 
         # Eq. 1 - Rotor-normal induction in residual form.
         e_an = (
