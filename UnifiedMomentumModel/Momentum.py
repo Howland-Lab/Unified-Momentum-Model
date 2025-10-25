@@ -8,6 +8,7 @@ import numpy.typing as npt
 from .Pressure import PressureTable
 from .Utilities.FixedPointIteration import fixedpointiteration, adaptivefixedpointiteration
 from .Utilities.Geometry import calc_eff_yaw, eff_yaw_inv_rotation
+from .Utilities.ArgTools import get_yaw, get_tilt
 
 @dataclass
 class MomentumSolution:
@@ -120,7 +121,11 @@ class Heck(MomentumBase):
         """
         self.v4_correction = v4_correction
 
-    def pre_process(self, Ctprime, yaw = 0, tilt = 0, **kwargs):
+    def pre_process(self, *args, **kwargs):
+        # args could be Ct, yaw, tilt - or yaw and tilt could be in
+        # kwargs depending on user behavior
+        yaw = get_yaw(args, kwargs, 1)
+        tilt = get_tilt(args, kwargs, 2)
         # switch reference frame to a "yaw-only" frame where y' is aligned with the lateral wake
         self.eff_yaw = calc_eff_yaw(yaw, tilt)
         return
@@ -157,7 +162,13 @@ class Heck(MomentumBase):
 
         return np.array([e_a, e_u4, e_v4])
 
-    def post_process(self, result, Ctprime: float, yaw: float = 0, tilt: float = 0, **kwargs):
+    def post_process(self, result, *args, **kwargs):
+        # args could be Ctprime, yaw, tilt - or yaw and tilt could be in
+        # kwargs depending on user behavior
+        Ctprime = args[0]
+        yaw = get_yaw(args, kwargs, 1)
+        tilt = get_tilt(args, kwargs, 2)
+        # get values depending on convergence
         if result.converged:
             a, u4, v4 = result.x
             w4 = np.zeros_like(v4)
@@ -244,7 +255,7 @@ class UnifiedMomentum(MomentumBase):
 
         return sol.an, sol.u4, sol.v4, x0, dp
 
-    def residual(self, x: np.ndarray, Ctprime: float, *args: float, e_x0: float = None, **kwargs: float) -> Tuple[float, ...]:
+    def residual(self, x: np.ndarray, Ctprime: float, *args: float, **kwargs: float) -> Tuple[float, ...]:
         """
         Returns the residuals of the Unified Momentum Model for the fixed point
         iteration. The equations referred to in this function are from the
@@ -257,16 +268,13 @@ class UnifiedMomentum(MomentumBase):
         p_g = self._nonlinear_pressure(Ctprime, self.eff_yaw, an, x0)
 
         # Eq. 4 - Near wake length in residual form.
-        if e_x0 is None:
-            e_x0 = (
-                np.cos(self.eff_yaw)
-                / (2 * self.beta)
-                * (1 + u4)
-                / np.abs(1 - u4)
-                * np.sqrt((1 - an) * np.cos(self.eff_yaw) / (1 + u4))
-            ) - x0
-        else:
-            print("I am in the right spot")
+        e_x0 = (
+            np.cos(self.eff_yaw)
+            / (2 * self.beta)
+            * (1 + u4)
+            / np.abs(1 - u4)
+            * np.sqrt((1 - an) * np.cos(self.eff_yaw) / (1 + u4))
+        ) - x0
 
         # Eq. 1 - Rotor-normal induction in residual form.
         e_an = (
@@ -317,7 +325,13 @@ class UnifiedMomentum(MomentumBase):
         p_g = self.nonlinear_interpolator((CT / 2, x0))
         return p_g
 
-    def post_process(self, result, Ctprime, yaw = 0, tilt = 0, **kwargs):
+    def post_process(self, result, *args, **kwargs):
+        # args could be Ctprime, yaw, tilt - or yaw and tilt could be in
+        # kwargs depending on user behavior
+        Ctprime = args[0]
+        yaw = get_yaw(args, kwargs, 1)
+        tilt = get_tilt(args, kwargs, 2)
+        # get result values
         a, u4, v4, x0, dp = result.x
         w4 = np.zeros_like(v4)
         p_g = self._nonlinear_pressure(Ctprime, self.eff_yaw, a, x0)
@@ -373,7 +387,12 @@ class ThrustBasedUnified(UnifiedMomentum):
         super().__init__(beta=beta, cached=cached)
 
     def pre_process(self, *args, **kwargs):
-        super().pre_process(*args, **kwargs)
+        # args could be Ct, yaw, tilt - or yaw and tilt could be in
+        # kwargs depending on user behavior
+        Ct = args[0]
+        yaw = get_yaw(args, kwargs, 1)
+        tilt = get_tilt(args, kwargs, 2)
+        super().pre_process(Ct, yaw = yaw, tilt = tilt)
         return
 
     def initial_guess(self, Ct, *args, **kwargs):
@@ -397,7 +416,12 @@ class ThrustBasedUnified(UnifiedMomentum):
         e_Ctprime = Ct / ((1 - an) ** 2 * np.cos(self.eff_yaw) ** 2) - Ctprime
         return np.array([e_an, e_u4, e_v4, e_x0, e_dp, e_Ctprime])
 
-    def post_process(self, result, Ct, yaw = 0, tilt = 0, **kwargs):
+    def post_process(self, result, *args, **kwargs):
+        # args could be Ct, yaw, tilt - or yaw and tilt could be in
+        # kwargs depending on user behavior
+        yaw = get_yaw(args, kwargs, 1)
+        tilt = get_tilt(args, kwargs, 2)
+        # get result values
         a, u4, v4, x0, dp, Ctprime = result.x
         w4 = np.zeros_like(v4)
         p_g = self._nonlinear_pressure(Ctprime, self.eff_yaw, a, x0)
