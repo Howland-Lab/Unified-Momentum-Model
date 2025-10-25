@@ -85,9 +85,10 @@ def eff_yaw_inv_rotation(eff_u, eff_v, eff_w, eff_yaw, yaw, tilt):
     cos_a = np.ones_like(eff_yaw)
     sin_a = np.zeros_like(eff_yaw)
     # if tilt != 0, then apply rotation matrix [cos_a -sin_a; sin_a cos_a] * [v_eff; 0] = [cos_a * veff ; -sin_a * veff]
+    non_zero_tilt = (tilt != 0) and (eff_yaw != 0) # really, really small tilt can lead to zero eff yaw
     sin_eff = np.sin(eff_yaw)
-    cos_a = np.divide(np.sin(yaw), sin_eff, where = tilt != 0, out = cos_a)
-    sin_a = np.divide(-(np.sin(tilt) * np.cos(yaw)), sin_eff, where = tilt != 0, out = sin_a)
+    cos_a = np.divide(np.sin(yaw), sin_eff, where = non_zero_tilt, out = cos_a)
+    sin_a = np.divide(-(np.sin(tilt) * np.cos(yaw)), sin_eff, where = non_zero_tilt, out = sin_a)
     # calculate wake velocities in the ground frame
     u = eff_u 
     v = cos_a * eff_v - sin_a * eff_w
