@@ -69,7 +69,9 @@ def calc_eff_yaw(yaw, tilt):
 
     Note: when tilt = 0, theta = eff_yaw = yaw and no rotation is needed.
     """
-    eff_yaw = np.where(tilt == 0, yaw, np.arccos(np.cos(yaw) * np.cos(tilt)))
+    eff_yaw = np.arccos(np.cos(yaw) * np.cos(tilt))
+    eff_yaw = np.where(yaw == 0, np.abs(tilt), eff_yaw) # tilt sign reintroduced in rotation back to ground frame
+    eff_yaw = np.where(tilt == 0, yaw, eff_yaw)
     return eff_yaw
 
 def eff_yaw_inv_rotation(eff_u, eff_v, eff_w, eff_yaw, yaw, tilt):
