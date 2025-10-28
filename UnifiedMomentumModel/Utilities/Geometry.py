@@ -83,14 +83,27 @@ def eff_yaw_inv_rotation(eff_u, eff_v, eff_w, eff_yaw, yaw, tilt):
 
     We can then apply this rotation matrix to the wake velocities to rotate them back into the ground frame.
     """
-    # if tilt = 0, then no rotation took place to enter the "yaw-only" frame, so v4 = 1 * eff_v and w4 = 0 * eff_v
+    # if tilt = 0, then no rotation took place to enter the "yaw-only" frame, so v4 = 1 * eff_v and w4 = 1 * eff_w
     cos_a = np.ones_like(eff_yaw)
     sin_a = np.zeros_like(eff_yaw)
-    # if tilt != 0, then apply rotation matrix [cos_a -sin_a; sin_a cos_a] * [v_eff; 0] = [cos_a * veff ; -sin_a * veff]
-    non_zero_tilt = (tilt != 0) & (eff_yaw != 0) # really, really small tilt can lead to zero eff yaw
-    sin_eff = np.sin(eff_yaw)
-    cos_a = np.divide(np.sin(yaw), sin_eff, where = non_zero_tilt, out = cos_a)
-    sin_a = np.divide(-(np.sin(tilt) * np.cos(yaw)), sin_eff, where = non_zero_tilt, out = sin_a)
+
+    # if tilt != 0, then some rotation was needed to enter into the "yaw-only" frame
+    non_zero_tilt = tilt != 0
+
+    # if tilt !=0 and yaw = 0, then we need to rotate +-45 degrees, so v4 = -+1 * eff_w and w4 = -+1 * eff_v
+    zero_yaw = yaw == 0
+    zero_yaw_non_zero_tilt = np.bitwise_and(zero_yaw, non_zero_tilt)
+    cos_a[zero_yaw_non_zero_tilt] = 0
+    sin_a[zero_yaw_non_zero_tilt] = -1
+    sin_a *= np.sign(tilt) # adjust sign since sine of negative is negative sine
+
+    # if yaw != 0 and tilt != 0, then apply rotation matrix [cos_a -sin_a; sin_a cos_a]
+    non_zero_yaw_tilt = np.invert(zero_yaw) & non_zero_tilt & (eff_yaw != 0) # really small yaw/tilt can lead to zero eff yaw
+    if np.any(non_zero_yaw_tilt):
+        sin_eff = np.sin(eff_yaw)
+        cos_a = np.divide(np.sin(yaw), sin_eff, where = non_zero_yaw_tilt, out = cos_a)
+        sin_a = np.divide(-(np.sin(tilt) * np.cos(yaw)), sin_eff, where = non_zero_yaw_tilt, out = sin_a)
+        
     # calculate wake velocities in the ground frame
     u = eff_u 
     v = cos_a * eff_v - sin_a * eff_w
