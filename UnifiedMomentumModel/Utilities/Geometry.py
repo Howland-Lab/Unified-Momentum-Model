@@ -62,9 +62,12 @@ def calc_eff_yaw(yaw, tilt):
 
     We can then apply the rotation matrix around the x axis as follows:
     R_x(a) = [1 0 0; 0 cos(a) sin(a); 0 -sin(a) cos(a)]
-    n' = R_x(a) * n = [cos(theta), sin(theta), 0]
+    R_x^(-1)(a) = [1 0 0; 0 cos(a) -sin(a); 0 sin(a) cos(a)] and also 
 
-    In the UMM with just yaw, we have n = [cos(yaw), sin(yaw), 0]. Therefore, we solve the UMM in this rotated "yaw-only" frame,
+    To write vectors the yaw-only frame, we can apply R(x). For example:
+    n' = R_x^(-1)(a) * n = [cos(theta), sin(theta), 0]
+
+    In the UMM in the yaw-only frame, we have n' = [cos(yaw), sin(yaw), 0]. Therefore, we solve the UMM in this rotated "yaw-only" frame,
     using eff_yaw = theta.
 
     Note: when tilt = 0, theta = eff_yaw = yaw and no rotation is needed.
@@ -75,6 +78,12 @@ def calc_eff_yaw(yaw, tilt):
     return eff_yaw
 
 def get_rotation_matrix_terms(eff_yaw, yaw, tilt):
+    """
+    Solves for cos(a) and sin(a) terms as explained in the calc_eff_yaw documentation above.
+
+    cos(a) = sin(yaw) / sin(theta)
+    sin(a) = -sin(tilt)cos(yaw) / sin(theta)
+    """
     # if tilt = 0, then no rotation is needed to enter the "yaw-only" frame
     cos_a = np.ones_like(eff_yaw)
     sin_a = np.zeros_like(eff_yaw)
@@ -98,6 +107,11 @@ def get_rotation_matrix_terms(eff_yaw, yaw, tilt):
     return cos_a, sin_a
 
 def eff_yaw_rotation(u, v, w, eff_yaw, yaw, tilt):
+    """
+    Apply rotation matrix into the yaw-only frame as dervived in the calc_eff_yaw function above.
+
+    R_x(a) = [1 0 0; 0 cos(a) sin(a); 0 -sin(a) cos(a)]
+    """
     cos_a, sin_a = get_rotation_matrix_terms(eff_yaw, yaw, tilt)
 
     eff_u = u
