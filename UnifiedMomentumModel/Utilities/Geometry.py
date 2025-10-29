@@ -74,23 +74,15 @@ def calc_eff_yaw(yaw, tilt):
     eff_yaw = np.where(tilt == 0, yaw, eff_yaw)
     return eff_yaw
 
-def eff_yaw_inv_rotation(eff_u, eff_v, eff_w, eff_yaw, yaw, tilt):
-    """
-    Changes frame of reference back to the ground frame from the yaw-only frame created by aligning the y' axis
-    with the rotor normal. We can use the inverse rotation matrix as applied above in the calc_eff_yaw function.
-
-    R_x^(-1)(a) = [1 0 0; 0 cos(a) -sin(a); 0 sin(a) cos(a)] where the cos(a) and sin(a) derivation is described above.
-
-    We can then apply this rotation matrix to the wake velocities to rotate them back into the ground frame.
-    """
-    # if tilt = 0, then no rotation took place to enter the "yaw-only" frame, so v4 = 1 * eff_v and w4 = 1 * eff_w
+def get_rotation_matrix_terms(eff_yaw, yaw, tilt):
+    # if tilt = 0, then no rotation is needed to enter the "yaw-only" frame
     cos_a = np.ones_like(eff_yaw)
     sin_a = np.zeros_like(eff_yaw)
 
-    # if tilt != 0, then some rotation was needed to enter into the "yaw-only" frame
+    # if tilt != 0, then some rotation is needed to enter into the "yaw-only" frame
     non_zero_tilt = tilt != 0
 
-    # if tilt !=0 and yaw = 0, then we need to rotate +-45 degrees, so v4 = -+1 * eff_w and w4 = -+1 * eff_v
+    # if tilt !=0 and yaw = 0, then we need to rotate +-90 degrees
     zero_yaw = yaw == 0
     zero_yaw_non_zero_tilt = np.bitwise_and(zero_yaw, non_zero_tilt)
     cos_a[zero_yaw_non_zero_tilt] = 0
@@ -103,8 +95,26 @@ def eff_yaw_inv_rotation(eff_u, eff_v, eff_w, eff_yaw, yaw, tilt):
         sin_eff = np.sin(eff_yaw)
         cos_a = np.divide(np.sin(yaw), sin_eff, where = non_zero_yaw_tilt, out = cos_a)
         sin_a = np.divide(-(np.sin(tilt) * np.cos(yaw)), sin_eff, where = non_zero_yaw_tilt, out = sin_a)
-        
-    # calculate wake velocities in the ground frame
+    return cos_a, sin_a
+
+def eff_yaw_rotation(u, v, w, eff_yaw, yaw, tilt):
+    cos_a, sin_a = get_rotation_matrix_terms(eff_yaw, yaw, tilt)
+
+    eff_u = u
+    eff_v = cos_a * v + sin_a * w
+    eff_w = -sin_a * v + cos_a * w
+    return eff_u, eff_v, eff_w
+
+def eff_yaw_inv_rotation(eff_u, eff_v, eff_w, eff_yaw, yaw, tilt):
+    """
+    Changes frame of reference back to the ground frame from the yaw-only frame created by aligning the y' axis
+    with the rotor normal. We can use the inverse rotation matrix as applied above in the calc_eff_yaw function.
+
+    R_x^(-1)(a) = [1 0 0; 0 cos(a) -sin(a); 0 sin(a) cos(a)] where the cos(a) and sin(a) derivation is described above.
+
+    We can then apply this rotation matrix to the wake velocities to rotate them back into the ground frame.
+    """
+    cos_a, sin_a = get_rotation_matrix_terms(eff_yaw, yaw, tilt)
     u = eff_u 
     v = cos_a * eff_v - sin_a * eff_w
     w = sin_a * eff_v + cos_a * eff_w
