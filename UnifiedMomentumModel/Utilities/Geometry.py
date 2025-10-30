@@ -36,7 +36,7 @@ class EquidistantRectGridEven(Geometry):
 
 def calc_eff_yaw(yaw, tilt):
     """
-    Returns the effective angle, combining yaw and tilt.
+    Returns the effective angle, combining yaw and tilt (in radians).
     
     Consider the rotation matrices:
     R_z(yaw) = [cos(yaw) -sin(yaw) 0; sin(yaw) cos(yaw) 0; 0 0 1]
@@ -62,17 +62,64 @@ def calc_eff_yaw(yaw, tilt):
 
     We can then apply the rotation matrix around the x axis as follows:
     R_x(a) = [1 0 0; 0 cos(a) sin(a); 0 -sin(a) cos(a)]
-    n' = R_x(a) * n = [cos(theta), sin(theta), 0]
+    R_x^(-1)(a) = [1 0 0; 0 cos(a) -sin(a); 0 sin(a) cos(a)] and also 
 
-    In the UMM with just yaw, we have n = [cos(yaw), sin(yaw), 0]. Therefore, we solve the UMM in this rotated "yaw-only" frame,
+    To write vectors the yaw-only frame, we can apply R(x). For example:
+    n' = R_x^(-1)(a) * n = [cos(theta), sin(theta), 0]
+
+    In the UMM in the yaw-only frame, we have n' = [cos(yaw), sin(yaw), 0]. Therefore, we solve the UMM in this rotated "yaw-only" frame,
     using eff_yaw = theta.
 
     Note: when tilt = 0, theta = eff_yaw = yaw and no rotation is needed.
     """
-    eff_yaw = np.where(tilt == 0, yaw, np.arccos(np.cos(yaw) * np.cos(tilt)))
+    eff_yaw = np.arccos(np.cos(yaw) * np.cos(tilt))
+    eff_yaw = np.where(yaw == 0, np.abs(tilt), eff_yaw) # tilt sign reintroduced in rotation back to ground frame
+    eff_yaw = np.where(tilt == 0, yaw, eff_yaw)
     return eff_yaw
 
-def eff_yaw_inv_rotation(eff_u, eff_v, eff_yaw, yaw, tilt):
+def get_rotation_matrix_terms(eff_yaw, yaw, tilt):
+    """
+    Solves for cos(a) and sin(a) terms as explained in the calc_eff_yaw documentation above.
+
+    cos(a) = sin(yaw) / sin(theta)
+    sin(a) = -sin(tilt)cos(yaw) / sin(theta)
+    """
+    # if tilt = 0, then no rotation is needed to enter the "yaw-only" frame
+    cos_a = np.ones_like(eff_yaw)
+    sin_a = np.zeros_like(eff_yaw)
+
+    # if tilt != 0, then some rotation is needed to enter into the "yaw-only" frame
+    non_zero_tilt = tilt != 0
+
+    # if tilt !=0 and yaw = 0, then we need to rotate +-90 degrees
+    zero_yaw = yaw == 0
+    zero_yaw_non_zero_tilt = np.bitwise_and(zero_yaw, non_zero_tilt)
+    cos_a[zero_yaw_non_zero_tilt] = 0
+    sin_a[zero_yaw_non_zero_tilt] = -1
+    sin_a *= np.sign(tilt) # adjust sign since sine of negative is negative sine
+
+    # if yaw != 0 and tilt != 0, then apply rotation matrix [cos_a -sin_a; sin_a cos_a]
+    non_zero_yaw_tilt = np.invert(zero_yaw) & non_zero_tilt & (eff_yaw != 0) # really small yaw/tilt can lead to zero eff yaw
+    if np.any(non_zero_yaw_tilt):
+        sin_eff = np.sin(eff_yaw)
+        cos_a = np.divide(np.sin(yaw), sin_eff, where = non_zero_yaw_tilt, out = cos_a)
+        sin_a = np.divide(-(np.sin(tilt) * np.cos(yaw)), sin_eff, where = non_zero_yaw_tilt, out = sin_a)
+    return cos_a, sin_a
+
+def eff_yaw_rotation(u, v, w, eff_yaw, yaw, tilt):
+    """
+    Apply rotation matrix into the yaw-only frame as dervived in the calc_eff_yaw function above.
+
+    R_x(a) = [1 0 0; 0 cos(a) sin(a); 0 -sin(a) cos(a)]
+    """
+    cos_a, sin_a = get_rotation_matrix_terms(eff_yaw, yaw, tilt)
+
+    eff_u = u
+    eff_v = cos_a * v + sin_a * w
+    eff_w = -sin_a * v + cos_a * w
+    return eff_u, eff_v, eff_w
+
+def eff_yaw_inv_rotation(eff_u, eff_v, eff_w, eff_yaw, yaw, tilt):
     """
     Changes frame of reference back to the ground frame from the yaw-only frame created by aligning the y' axis
     with the rotor normal. We can use the inverse rotation matrix as applied above in the calc_eff_yaw function.
@@ -81,17 +128,10 @@ def eff_yaw_inv_rotation(eff_u, eff_v, eff_yaw, yaw, tilt):
 
     We can then apply this rotation matrix to the wake velocities to rotate them back into the ground frame.
     """
-    # if tilt = 0, then no rotation took place to enter the "yaw-only" frame, so v4 = 1 * eff_v and w4 = 0 * eff_v
-    cos_a = np.ones_like(eff_yaw)
-    sin_a = np.zeros_like(eff_yaw)
-    # if tilt != 0, then apply rotation matrix [cos_a -sin_a; sin_a cos_a] * [v_eff; 0] = [cos_a * veff ; -sin_a * veff]
-    sin_eff = np.sin(eff_yaw)
-    cos_a = np.divide(np.sin(yaw), sin_eff, where = tilt != 0, out = cos_a)
-    sin_a = np.divide(-(np.sin(tilt) * np.cos(yaw)), sin_eff, where = tilt != 0, out = sin_a)
-    # calculate wake velocities in the ground frame
+    cos_a, sin_a = get_rotation_matrix_terms(eff_yaw, yaw, tilt)
     u = eff_u 
-    v = cos_a * eff_v
-    w = sin_a * eff_v
+    v = cos_a * eff_v - sin_a * eff_w
+    w = sin_a * eff_v + cos_a * eff_w
     return u, v, w
 
 if __name__ == "__main__":
