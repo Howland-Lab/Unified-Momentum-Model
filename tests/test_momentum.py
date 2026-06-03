@@ -12,17 +12,17 @@ def test_MomentumSolution_constructors():
     assert an == sol1.an, "MomentumSolution induction not set correctly."
     assert u4 == sol1.u4 and v4 == sol1.v4 and w4 == sol1.w4, "MomentumSolution wake velocities not set correctly."
     assert x0 == sol1.x0 and dp == sol1.dp, "MomentumSolution far wake distance and pressure not set correctly."
-    assert sol1.dp_NL == 0 and sol1.niter == 1 and sol1.converged == True and sol1.beta == 0, "MomentumSolution default parameters not set correctly."
+    assert sol1.dp_NL == 0 and sol1.niter == 1 and sol1.converged == True and sol1.beta_s == 0, "MomentumSolution default parameters not set correctly."
     # constructor with optional parameter dp_NL
     sol2 = MomentumSolution(Ctprime, yaw, an, u4, v4, x0, dp, dp_NL=1, tilt = tilt, w4 = w4)
     assert sol2.dp_NL == 1, "MomentumSolution optional parameter dp_NL not setting incorrectly "
     # constructor with optional parameter niter
     sol3 = MomentumSolution(Ctprime, yaw, an, u4, v4, x0, dp, niter=2, tilt = tilt, w4 = w4)
     assert sol3.niter == 2, "MomentumSolution optional parameter niter not setting incorrectly "
-    # constructor with optional parameter beta
+    # constructor with optional parameter beta_s
     tilt = 0  # value used for previous tests to maintain values
-    sol4 = MomentumSolution(Ctprime, yaw, an, u4, v4, x0, dp, beta=1, tilt = tilt, w4 = w4)
-    assert sol4.beta == 1, "MomentumSolution optional parameter beta not setting incorrectly "
+    sol4 = MomentumSolution(Ctprime, yaw, an, u4, v4, x0, dp, beta_s=1, tilt = tilt, w4 = w4)
+    assert sol4.beta_s == 1, "MomentumSolution optional parameter beta_s not setting incorrectly "
     assert sol4.Ct == approx(0.0729816)
     assert sol4.Cp == approx(0.0197160756563)
 
