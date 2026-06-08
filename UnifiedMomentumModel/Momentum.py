@@ -472,6 +472,17 @@ class UnifiedBlockage(MomentumBase):
         initial_guess = [umm_sol.an, dp, us, A4, umm_sol.u4, umm_sol.v4]
         return initial_guess
     
+    def initial_guess(self, Ctprime, yaw, beta):
+        if beta <= 0.1:
+            return self._initial_guess_umm(Ctprime, yaw, beta)
+        else:
+            intermediate_betas = np.arange(0.1, beta, 0.1)
+            initial_guess = self._initial_guess_umm(Ctprime, yaw, 0.1)
+            for intermediate_beta in intermediate_betas:
+                sol = self._solve(Ctprime, yaw, intermediate_beta, initial_guess)
+                initial_guess = sol[0]
+            return initial_guess
+    
 
     def _solve(self, Ctprime, yaw, beta, initial_guess):
         sol = fsolve(
@@ -494,23 +505,7 @@ class UnifiedBlockage(MomentumBase):
         - sol: BlockageSolution
 
         '''
-        if beta > 0.4:
-            beta_it1 = 0.15    
-            initial_guess_it1 = self._initial_guess_umm(Ctprime, yaw, beta)
-            sol_it1 = self._solve(Ctprime, yaw, beta_it1, initial_guess_it1)
-            beta_it2 = 0.4
-            initial_guess_it2 = sol_it1[0]
-            sol_it2 = self._solve(Ctprime, yaw, beta_it2, initial_guess_it2)
-            initial_guess = sol_it2[0]
-
-        elif beta > 0.15:
-            beta_it1 = 0.15
-            initial_guess_it1 = self._initial_guess_umm(Ctprime, yaw, beta)
-            sol_it1 = self._solve(Ctprime, yaw, beta_it1, initial_guess_it1)
-            initial_guess = sol_it1[0]
-
-        else:
-            initial_guess = self._initial_guess_umm(Ctprime, yaw, beta)
+        initial_guess = self.initial_guess(Ctprime, yaw, beta)
 
         sol = self._solve(Ctprime, yaw, beta, initial_guess)
 
