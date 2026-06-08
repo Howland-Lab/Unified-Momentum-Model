@@ -13,6 +13,7 @@ import numpy.typing as npt
 from .Pressure import PressureTable
 from .Utilities.FixedPointIteration import fixedpointiteration, adaptivefixedpointiteration
 from .Utilities.Geometry import calc_eff_yaw, eff_yaw_inv_rotation
+from .Utilities.Caching import cache_polars
 
 @dataclass
 class MomentumSolution:
@@ -30,7 +31,7 @@ class MomentumSolution:
     dp_NL: Optional[Union[float, npt.ArrayLike]] = 0.0
     niter: Optional[int] = 1
     converged: Optional[bool] = True
-    beta_s: Optional[float] = 0.0
+    beta_s: Optional[float] = 0.0 # shear layer growth parameter for Unified Momentum Model
 
     @property
     def Ct(self):
@@ -50,7 +51,7 @@ class BlockageSolution(MomentumSolution):
     dpw: Union[float, npt.ArrayLike] = 0.0 # dpw = (p4 - p4w) / (rho * Uinf^2)
     us: Union[float, npt.ArrayLike] = 0.0
     A4: Union[float, npt.ArrayLike] = 0.0
-    beta: Union[float, npt.ArrayLike] = 0.0
+    beta: Union[float, npt.ArrayLike] = 0.0 # blockage ratio
 
 
 class MomentumBase(metaclass=ABCMeta):
@@ -460,6 +461,27 @@ class UnifiedBlockage(MomentumBase):
         r6 =  0.5*us**2 - 0.5 - dPstar
 
         return [r1, r2, r3, r4, r5, r6]
+    
+
+    def _initial_guess_umm(self, Ctprime, yaw,  beta):
+        umm_model = UnifiedMomentum()
+        umm_sol = umm_model(Ctprime, yaw)
+        A4 = (1 - umm_sol.an) * np.cos(yaw) / (umm_sol.u4 + 1e-1) + 1
+        us = 1 + (beta * A4 * (1 - umm_sol.u4))/(1 - beta * A4)
+        dp = (us**2 - 1)/2
+        initial_guess = [umm_sol.an, dp, us, A4, umm_sol.u4, umm_sol.v4]
+        return initial_guess
+    
+
+    def _solve(self, Ctprime, yaw, beta, initial_guess):
+        sol = fsolve(
+            self.residual,
+            initial_guess,
+            args=(Ctprime, yaw, beta),
+            xtol=1e-6,  
+            full_output=True,
+        )
+        return sol
 
     def __call__(self, Ctprime, yaw, beta):
         '''
@@ -473,67 +495,24 @@ class UnifiedBlockage(MomentumBase):
 
         '''
         if beta > 0.4:
-            beta_it1 = 0.15
-            umm_model = UnifiedMomentum()
-            umm_sol = umm_model(Ctprime, yaw)
-            A4 = (1 - umm_sol.an) * np.cos(yaw) / (umm_sol.u4 + 1e-1) + 1
-            us = 1 + (beta_it1 * A4 * (1 - umm_sol.u4))/(1 - beta_it1 * A4)
-            dp = (us**2 - 1)/2
-            
-            initial_guess_it1 = [umm_sol.an, dp, us, A4, umm_sol.u4, umm_sol.v4]
-            sol_it1 = fsolve(
-                self.residual,
-                initial_guess_it1,
-                args=(Ctprime, yaw, beta_it1),
-                xtol=1e-6,
-                full_output=True
-            )
-            initial_guess_it2 = sol_it1[0]
+            beta_it1 = 0.15    
+            initial_guess_it1 = self._initial_guess_umm(Ctprime, yaw, beta)
+            sol_it1 = self._solve(Ctprime, yaw, beta_it1, initial_guess_it1)
             beta_it2 = 0.4
-
-            sol_it2 = fsolve(
-                self.residual,
-                initial_guess_it2,
-                args=(Ctprime, yaw, beta_it2),
-                xtol=1e-6,
-                full_output=True
-            )
+            initial_guess_it2 = sol_it1[0]
+            sol_it2 = self._solve(Ctprime, yaw, beta_it2, initial_guess_it2)
             initial_guess = sol_it2[0]
 
         elif beta > 0.15:
             beta_it1 = 0.15
-            umm_model = UnifiedMomentum()
-            umm_sol = umm_model(Ctprime, yaw)
-
-            A4 = (1 - umm_sol.an) * np.cos(yaw) / (umm_sol.u4 + 1e-1) + 1
-            us = 1 + (beta_it1 * A4 * (1 - umm_sol.u4))/(1 - beta_it1 * A4)
-            dp = (us**2 - 1)/2
-            initial_guess_it1 = [umm_sol.an, dp, us, A4, umm_sol.u4, umm_sol.v4]
-
-            sol_it1 = fsolve(
-                self.residual,
-                initial_guess_it1,
-                args=(Ctprime, yaw, beta_it1),
-                xtol=1e-6, 
-                full_output=True
-            )
+            initial_guess_it1 = self._initial_guess_umm(Ctprime, yaw, beta)
+            sol_it1 = self._solve(Ctprime, yaw, beta_it1, initial_guess_it1)
             initial_guess = sol_it1[0]
 
         else:
-            umm_model = UnifiedMomentum()
-            umm_sol = umm_model(Ctprime, yaw)
-            A4 = (1 - umm_sol.an) * np.cos(yaw) / (umm_sol.u4 + 1e-1) + 1
-            us = 1 + (beta * A4 * (1 - umm_sol.u4))/(1 - beta * A4)
-            dp = (us**2 - 1)/2
-            initial_guess = [umm_sol.an, dp, us, A4, umm_sol.u4, umm_sol.v4]
+            initial_guess = self._initial_guess_umm(Ctprime, yaw, beta)
 
-        sol = fsolve(
-            self.residual,
-            initial_guess,
-            args=(Ctprime, yaw, beta),
-            xtol=1e-6,  
-            full_output=True,
-        )
+        sol = self._solve(Ctprime, yaw, beta, initial_guess)
 
         umm_sol = UnifiedMomentum()(Ctprime, yaw)
 
@@ -554,35 +533,7 @@ class UnifiedBlockage(MomentumBase):
 
 
 """ Thrust-based formulation of Unified Blockage Model (Upfal et al. 2026) """
-blockage_solution_table = Path(__file__).parent.parent / "blockage_solution_table.csv"
-def cache_polars(cache_file):
-    """
-    Decorator function for caching Polars DataFrame using CSV format.
-
-    Parameters:
-    - cache_file (Union[str, Path]): The path to the cache file.
-
-    Returns:
-    - Callable: Decorator function to be applied to another function.
-    """
-
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            cache_filepath = Path(cache_file)
-            cache_filepath.parent.mkdir(exist_ok=True, parents=True)
-            regenerate = kwargs.pop("regenerate", False)
-
-            if not regenerate and cache_filepath.exists():
-                return pl.read_csv(cache_filepath)
-            else:
-                df = func(*args, **kwargs)
-                df.write_csv(cache_filepath)
-                return df
-
-        return wrapper
-    return decorator
-
+blockage_solution_table = Path(__file__).parent / "Utilities/blockage_solution_table.csv"
 @cache_polars(blockage_solution_table)
 def generate_table():
     print("Generating table for ThrustBasedBlocked initial guess...")
@@ -612,7 +563,46 @@ def generate_table():
                     results.append(_df)
     return pl.concat(results)
 
-class ThrustBasedBlockage(MomentumBase):
+class ThrustBasedBlockage(UnifiedBlockage):
+    def _initial_guess_umm(self, Ct, yaw, beta):
+        umm_model = ThrustBasedUnified()
+        umm_sol = umm_model(Ct, yaw)
+        A4 = (1 - umm_sol.an) * np.cos(yaw) / (umm_sol.u4 + 1e-6)
+        us = (
+            (1/beta - umm_sol.u4 * A4) /
+            (1/beta - A4)
+        )
+        dp = (us**2 - 1)/2
+        return [umm_sol.an, dp, us, A4, umm_sol.Ctprime, umm_sol.u4, umm_sol.v4]
+    
+    def initial_guess_from_table(self, Ct, yaw, beta):
+        df = generate_table()
+        axes = df.select(['ct', 'yaw', 'beta']).to_numpy()
+        an_data = df['an'].to_numpy()
+        dPstar_data = df['dPstar'].to_numpy()
+        us_data = df['us'].to_numpy()
+        A4_data = df['A4'].to_numpy()
+        ctprime_data = df['ctprime'].to_numpy()
+        u4_data = df['u4'].to_numpy()
+        v4_data = df['v4'].to_numpy()
+
+        an_interp = LinearNDInterpolator(axes, an_data)
+        dPstar_interp = LinearNDInterpolator(axes, dPstar_data)
+        us_interp = LinearNDInterpolator(axes, us_data)
+        A4_interp = LinearNDInterpolator(axes, A4_data)
+        ctprime_interp = LinearNDInterpolator(axes, ctprime_data)
+        u4_interp = LinearNDInterpolator(axes, u4_data)
+        v4_interp = LinearNDInterpolator(axes, v4_data)
+
+        an_0 = an_interp(Ct, yaw, beta)
+        dPstar_0 = dPstar_interp(Ct, yaw, beta)
+        us_0 = us_interp(Ct, yaw, beta)
+        A4_0 = A4_interp(Ct, yaw, beta)
+        ctprime_0 = ctprime_interp(Ct, yaw, beta)
+        u4_0 = u4_interp(Ct, yaw, beta)
+        v4_0 = v4_interp(Ct, yaw, beta)
+        return np.array([an_0, dPstar_0, us_0, A4_0, ctprime_0, u4_0, v4_0])
+
     def residual(self, x, Ct, yaw, beta):
         '''
         Inputs:
@@ -630,29 +620,16 @@ class ThrustBasedBlockage(MomentumBase):
         u4 = np.clip(u4, 0.0001, 1.01)
         an = np.clip(an, 0.0001, 0.999)
 
-        umm_model = UnifiedMomentum()
-        umm_sol = umm_model(Ctprime, yaw)
-        dp_UMM = umm_sol.dp
-        dpw = - (1 - beta) * dp_UMM
-
-        r1 = 1 - np.sqrt(np.clip(
-            ((1 - u4**2 - v4**2) / (Ctprime*(np.cos(yaw)**2) + 1e-6)) + 
-            ((dPstar + dpw) / (0.5*Ctprime*(np.cos(yaw)**2))), 0, 1e6)
-            ) - an
-        r2 = (1 - an)*np.cos(yaw)/A4 - u4
-        r3 = - (1/4)*Ctprime*((1-an)**2)*np.sin(yaw)*(np.cos(yaw)**2) - v4
-        r4 = 1 + (beta * A4 * (1 - u4))/(1 - beta * A4) - us
-        r5 = (
-            (0.5 * Ctprime * ((1 - an)**2) * (np.cos(yaw)**3) + (1/beta)*(us**2 - dPstar - 1)) /
-            (dpw - u4**2 + us**2)
-        ) - A4
-        r6 =  0.5*us**2 - 0.5 - dPstar
+        r1, r2, r3, r4, r5, r6 = super().residual(
+            [an, dPstar, us, A4, u4, v4], Ctprime, yaw, beta
+        )
         r7 = (Ct / ((1-an)**2 * np.cos(yaw)**2 + 1e-6)) - Ctprime
         
         return [r1, r2, r3, r4, r5, r6, r7]
 
     def __call__(self, Ct, yaw, beta):
         '''
+
         Inputs:
         - Ct : Thrust coefficient
         - yaw : Yaw angle in radians
@@ -662,55 +639,16 @@ class ThrustBasedBlockage(MomentumBase):
         - sol: BlockageSolution
         '''
 
-        if beta > 0.01:   
-            df = generate_table()
-            axes = df.select(['ct', 'yaw', 'beta']).to_numpy()
-            an_data = df['an'].to_numpy()
-            dPstar_data = df['dPstar'].to_numpy()
-            us_data = df['us'].to_numpy()
-            A4_data = df['A4'].to_numpy()
-            ctprime_data = df['ctprime'].to_numpy()
-            u4_data = df['u4'].to_numpy()
-            v4_data = df['v4'].to_numpy()
+        # Use the Unified Momentum Model solution-based guess as an initial 
+        # guess for low blockage ratios, and use a table-based initial guess 
+        # for higher blockage ratios.
 
-            # mask if success is False
-            mask = df['success'].to_numpy().astype(bool)
-            an_data = np.where(mask, an_data, np.nan)
-            dPstar_data = np.where(mask, dPstar_data, np.nan)
-            us_data = np.where(mask, us_data, np.nan)
-            A4_data = np.where(mask, A4_data, np.nan)
-            ctprime_data = np.where(mask, ctprime_data, np.nan)
-            u4_data = np.where(mask, u4_data, np.nan)
-            v4_data = np.where(mask, v4_data, np.nan)
-
-            an_interp = LinearNDInterpolator(axes, an_data)
-            dPstar_interp = LinearNDInterpolator(axes, dPstar_data)
-            us_interp = LinearNDInterpolator(axes, us_data)
-            A4_interp = LinearNDInterpolator(axes, A4_data)
-            ctprime_interp = LinearNDInterpolator(axes, ctprime_data)
-            u4_interp = LinearNDInterpolator(axes, u4_data)
-            v4_interp = LinearNDInterpolator(axes, v4_data)
-
-            an_0 = an_interp(Ct, yaw, beta)
-            dPstar_0 = dPstar_interp(Ct, yaw, beta)
-            us_0 = us_interp(Ct, yaw, beta)
-            A4_0 = A4_interp(Ct, yaw, beta)
-            ctprime_0 = ctprime_interp(Ct, yaw, beta)
-            u4_0 = u4_interp(Ct, yaw, beta)
-            v4_0 = v4_interp(Ct, yaw, beta)
-            initial_guess = np.array([an_0, dPstar_0, us_0, A4_0, ctprime_0, u4_0, v4_0])
-
+        if beta > 0.01:
+            initial_guess = self.initial_guess_from_table(Ct, yaw, beta)
         else:
-            umm_model = ThrustBasedUnified()
-            umm_sol = umm_model(Ct, yaw)
-            A4 = (1 - umm_sol.an) * np.cos(yaw) / (umm_sol.u4 + 1e-6)
-            us = (
-                (1/beta - umm_sol.u4 * A4) /
-                (1/beta - A4)
-            )
-            dp = (us**2 - 1)/2
-            initial_guess = [umm_sol.an, dp, us, A4, umm_sol.Ctprime, umm_sol.u4, umm_sol.v4]
+            initial_guess = self._initial_guess_umm(Ct, yaw, beta)
 
+        
         sol = fsolve(
             lambda x: self.residual(x, Ct, yaw, beta),
             initial_guess,

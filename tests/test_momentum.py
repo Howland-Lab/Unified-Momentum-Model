@@ -1,7 +1,16 @@
 import numpy as np
 from pytest import approx, mark
 
-from UnifiedMomentumModel.Momentum import MomentumSolution, LimitedHeck, Heck, UnifiedMomentum, ThrustBasedUnified
+from UnifiedMomentumModel.Momentum import (
+    MomentumSolution, 
+    LimitedHeck, 
+    Heck, 
+    UnifiedMomentum, 
+    ThrustBasedUnified, 
+    BlockageSolution, 
+    UnifiedBlockage, 
+    ThrustBasedBlockage
+)
 from UnifiedMomentumModel.Utilities.Geometry import calc_eff_yaw
 
 def test_MomentumSolution_constructors():
@@ -25,6 +34,14 @@ def test_MomentumSolution_constructors():
     assert sol4.beta_s == 1, "MomentumSolution optional parameter beta_s not setting incorrectly "
     assert sol4.Ct == approx(0.0729816)
     assert sol4.Cp == approx(0.0197160756563)
+
+    # blockage solution constructor
+    dpw, us, A4, beta = 0.01, 1.1, 2, 0.3
+    sol5 = BlockageSolution(Ctprime, yaw, an, u4, v4, x0, dp, dpw = dpw, us = us, A4 = A4, beta = beta)
+    assert sol5.dpw == dpw, "BlockageSolution optional parameter dpw not set correctly "
+    assert sol5.us == us, "BlockageSolution optional parameter us not set correctly "
+    assert sol5.A4 == A4, "BlockageSolution optional parameter A4 not set correctly "
+    assert sol5.beta == beta, "BlockageSolution optional parameter beta not set correctly "
 
 def test_MomentumSolution_comparison():
     Ctprime, yaw, tilt, an, u4, v4, w4, x0, dp = 1, 1, 0, 0.5, 1, 1, 0, 1, 1
@@ -124,3 +141,25 @@ def test_model_output_type(model):  # CT is CT' for LimitedHeck, Heck, and Unifi
     assert isinstance(solution.u4, np.ndarray) and (solution.u4.shape == (2,))
     assert isinstance(solution.v4, np.ndarray) and (solution.v4.shape == (2,))
     assert isinstance(solution.w4, np.ndarray) and (solution.w4.shape == (2,))
+
+
+def test_unified_blockage():
+    model = UnifiedBlockage()
+    Ctprime = 2
+    yaw = np.deg2rad(10)
+    beta = 0.3
+    sol = model(Ctprime, yaw, beta)
+    assert sol.Ctprime == approx(Ctprime)
+    assert sol.yaw == approx(yaw)
+    assert sol.beta == approx(beta)
+
+def test_thrust_based_blockage():
+    model = ThrustBasedBlockage()
+    Ct = 0.5
+    yaw = np.deg2rad(10)
+    beta = 0.3
+    sol = model(Ct, yaw, beta)
+    assert sol.Ct == approx(Ct)
+    assert sol.yaw == approx(yaw)
+    assert sol.beta == approx(beta)
+
