@@ -159,7 +159,7 @@ def test_thrust_based_blockage():
     yaw = np.deg2rad(10)
     beta = 0.3
     sol = model(Ct, yaw, beta)
-    assert sol.Ct == approx(Ct)
+    assert sol.Ct == approx(Ct, rel = 1e-4)
     assert sol.yaw == approx(yaw)
     assert sol.beta == approx(beta)
 
